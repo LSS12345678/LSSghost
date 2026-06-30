@@ -381,6 +381,42 @@
     // ==========================================
     const initFirebase = async () => {
       console.log("%c[Debug-1] 🚀 Firebase初期化関数を実行しました。", "color: #a855f7; font-weight: bold; font-size: 14px;");
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyBe25V65r6vWdtc6VgQitI-4qC_kjybkOo",
+      authDomain: "lss-ghost-5347a.firebaseapp.com",
+      projectId:"lss-ghost-5347a",
+      storageBucket: "lss-ghost-5347a.firebasestorage.app",
+      messagingSenderId: "88851375338",
+      appId: "1:88851375338:web:25925dc166ee353cd6a393"
+    };
+
+    console.log("%c[Debug-2] ✅ 直接設定されたConfigで接続を開始します。", "color: #06b6d4;");
+
+      // 5. Firebaseの接続開始
+    try {
+      console.log("%c[Debug-5] ⏳ initializeApp を実行してFirebaseに接続を開始します...", "color: #06b6d4;");
+      const app = initializeApp(firebaseConfig); // 💡 ここをfirebaseConfigに変更
+        
+      console.log("%c[Debug-6] ⏳ getAuth / getFirestore を準備中...", "color: #06b6d4;");
+      window.auth = getAuth(app);
+      window.db = getFirestore(app);
+        
+      console.log("%c[Debug-7] ⏳ Firebase匿名認証(signInAnonymously)を要求中...", "color: #06b6d4;");
+      await signInAnonymously(window.auth);
+        
+      // ここまで来れば成功
+      window.isCloudRankingEnabled = true;
+      console.log("%c[Debug-Success] 🔓 匿名認証に完全成功しました！オンラインランキング(window.isCloudRankingEnabled)を 【 true 】 に設定しました！", "color: #10b981; font-weight: bold; background: #dcfce7; padding: 6px; font-size: 13px;");
+      
+    } catch (error) {
+      console.error("%c[Debug-Error] ❌ Firebaseの初期化、またはネットワーク接続・認証中にエラーが発生しました。詳細:", "color: #ef4444; font-weight: bold; background: #fee2e2; padding: 4px;", error);
+    }
+
+    // ランキング描画へ進む
+    console.log("%c[Debug-8] ⏳ 初回のランキング読み込み(displayRanking)を呼び出します。", "color: #a855f7;");
+    displayRanking();
+  };
       
       // 1. __firebase_config 自体が存在するかチェック
       if (typeof __firebase_config === 'undefined') {
