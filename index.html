@@ -367,60 +367,88 @@
   <!-- Firebase SDK のインポート (Firestore用) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, getDocs, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // グローバル状態・設定
+    // グローバル状態オブジェクト（ゲーム側と共有）
     window.db = null;
     window.auth = null;
-    window.appId = 'default-app-id';
-    window.userId = null;
     window.isCloudRankingEnabled = false;
 
-    // Firebase初期化と認証処理 (RULE 3)
+    // ==========================================
+    // 🔍 【デバッグ】Firebase初期化 & 環境変数チェック
+    // ==========================================
     const initFirebase = async () => {
-      try {
-        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-          const firebaseConfig = JSON.parse(__firebase_config);
-          const app = initializeApp(firebaseConfig);
-          window.auth = getAuth(app);
-          window.db = getFirestore(app);
-          window.appId = typeof __app_id !== 'undefined' ? __app_id : 'magic-maze-game';
-
-          // 認証
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(window.auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(window.auth);
-          }
-
-          onAuthStateChanged(window.auth, (user) => {
-            if (user) {
-              window.userId = user.uid;
-              window.isCloudRankingEnabled = true;
-              document.getElementById('sync-indicator').innerText = "☁️ オンライン同期中";
-              // ランキングの初回読み込み
-              displayRanking();
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Firebaseの読み込みに失敗しました。ローカルストレージを使用します。", err);
+      console.log("%c[Debug-1] 🚀 Firebase初期化関数を実行しました。", "color: #a855f7; font-weight: bold; font-size: 14px;");
+      
+      // 1. __firebase_config 自体が存在するかチェック
+      if (typeof __firebase_config === 'undefined') {
+        console.error("%c[Debug-Error] ❌ '__firebase_config' という変数自体がブラウザ上に存在しません(undefined)。Vercelの環境変数が読み込めていないか、HTML側での受け取り宣言がありません。", "color: #ef4444; font-weight: bold; background: #fee2e2; padding: 4px;");
+        displayRanking();
+        return;
       }
+
+      console.log("%c[Debug-2] ✅ '__firebase_config' の存在を確認しました。中身を検証します:", "color: #06b6d4;", __firebase_config);
+
+      // 2. 中身の型や空っぽ（空文字列など）でないかチェック
+      if (!__firebase_config || __firebase_config === "") {
+        console.warn("%c[Debug-Warning] ⚠️ '__firebase_config' は存在しますが、中身が空っぽ(null または空文字列)です。VercelのValueが未設定の可能性があります。", "color: #eab308; font-weight: bold;");
+        displayRanking();
+        return;
+      }
+
+      let configObj = null;
+
+      // 3. 文字列で届いている場合のパース処理チェック
+      if (typeof __firebase_config === 'string') {
+        console.log("%c[Debug-3] ℹ️ '__firebase_config' は【文字列(String)】として届いています。JSONオブジェクトへの変換を試みます...", "color: #3b82f6;");
+        try {
+          configObj = JSON.parse(__firebase_config);
+          console.log("%c[Debug-4] 🎉 文字列からJSONオブジェクトへの変換に成功しました:", "color: #10b981;", configObj);
+        } catch (e) {
+          console.error("%c[Debug-Error] ❌ JSONのパースに失敗しました。VercelのValueに入れたJSONの形式（カッコやダブルクォーテーション）が正しくない可能性があります。エラー詳細:", "color: #ef4444; font-weight: bold;", e);
+          displayRanking();
+          return;
+        }
+      } else if (typeof __firebase_config === 'object') {
+        console.log("%c[Debug-3] ℹ️ '__firebase_config' は最初から【オブジェクト(Object)】として正常に届いています。", "color: #3b82f6;");
+        configObj = __firebase_config;
+      }
+
+      // 4. 設定値（Config）の必須キーが揃っているか確認
+      if (configObj && !configObj.apiKey) {
+        console.error("%c[Debug-Error] ❌ Firebase Configオブジェクトの中に 'apiKey' が見つかりません。構造が壊れている可能性があります。", "color: #ef4444; font-weight: bold;");
+      }
+
+      // 5. Firebaseの接続開始
+      try {
+        console.log("%c[Debug-5] ⏳ initializeApp を実行してFirebaseに接続を開始します...", "color: #06b6d4;");
+        const app = initializeApp(configObj);
+        
+        console.log("%c[Debug-6] ⏳ getAuth / getFirestore を準備中...", "color: #06b6d4;");
+        window.auth = getAuth(app);
+        window.db = getFirestore(app);
+        
+        console.log("%c[Debug-7] ⏳ Firebase匿名認証(signInAnonymously)を要求中...", "color: #06b6d4;");
+        await signInAnonymously(window.auth);
+        
+        // ここまで来れば成功
+        window.isCloudRankingEnabled = true;
+        console.log("%c[Debug-Success] 🔓 匿名認証に完全成功しました！オンラインランキング(window.isCloudRankingEnabled)を 【 true 】 に設定しました！", "color: #10b981; font-weight: bold; background: #dcfce7; padding: 6px; font-size: 13px;");
+      
+      } catch (error) {
+        console.error("%c[Debug-Error] ❌ Firebaseの初期化、またはネットワーク接続・認証中にエラーが発生しました。404エラーの原因はここかもしれません。詳細:", "color: #ef4444; font-weight: bold; background: #fee2e2; padding: 4px;", error);
+      }
+
+      // ランキング描画へ進む
+      console.log("%c[Debug-8] ⏳ 初回のランキング読み込み(displayRanking)を呼び出します。", "color: #a855f7;");
+      displayRanking();
     };
 
-    // ロード時に実行
-    window.addEventListener('load', () => {
-      initFirebase();
-    });
-  </script>
-
-  <!-- ゲームのプログラム -->
-  <script>
+    // --- ここからゲームのメインロジック ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    // アイテム情報
     const ITEMS_INFO = {
       freeze: { name: "おばけストップ", emoji: "❄️", desc: "❄️ おばけストップ: 10秒間、おばけ全員を凍らせて眠らせるよ！(💤マーク)", color: "#3b82f6", tailwind: "blue" },
       return: { name: "おばけリターン", emoji: "🏠", desc: "🏠 おばけリターン: すべてのおばけを一瞬でスタート地点（おうち）に強制ワープで戻すよ！", color: "#ec4899", tailwind: "pink" },
@@ -429,7 +457,6 @@
       magnet: { name: "星ひきよせ", emoji: "🧲", desc: "🧲 星ひきよせ: ねこちゃんのまわり２マスにある黄色いお星さまをまとめて回収するよ！", color: "#f97316", tailwind: "orange" }
     };
 
-    // レベルごとの設定
     const LEVELS_DATA = {
       1: {
         timeLimit: 100,
@@ -520,42 +547,34 @@
       }
     };
 
-    let selectedLevel = 1; // プレイヤーがセレクトした開始レベル
+    window.selectedLevel = 1;
     let currentLevel = 1;
     let currentMap = [];
     let tileCountX = 15;
     let tileCountY = 15;
     let TILE_SIZE = 26.6;
     
-    // キャラクターの状態
     let player = { x: 7, y: 1, targetX: 7, targetY: 1, animProgress: 0 };
     let ghosts = [];
     let totalStars = 0;
     let gameActive = false;
     let animationFrameId;
 
-    // プレイヤーがホーム画面で選んだアイテム２つ
-    let chosenItems = ['freeze', 'return'];
-    let stockSlots = [1, 1]; // 各スロットの所持数
+    window.chosenItems = ['freeze', 'return'];
+    let stockSlots = [1, 1];
 
-    // 発動中のまほうタイマー（フレーム数：60fps）
-    let ghostFreezeTime = 0; // おばけ停止（10秒 = 600フレーム）
-    let playerShieldTime = 0; // バリア無敵（10秒 = 600フレーム）
+    let ghostFreezeTime = 0;
+    let playerShieldTime = 0;
 
-    // ゲーム制限時間、お助けアイテムフラグ、獲得スコア
-    let timeLeft = 100; // 残り秒数
-    let timerInterval = null; // 時間を測るタイマーID
-    let itemUsedThisStage = false; // アイテムを今回のステージで一度でも使ったかどうかのフラグ
-    let finalCalculatedScore = 0; // 今回の合計獲得スコア
+    let timeLeft = 100;
+    let timerInterval = null;
+    let itemUsedThisStage = false;
+    let finalCalculatedScore = 0;
 
-    // 画面に浮かび上がる文字エフェクト用
     let uiTextEffect = { text: "", timer: 0, color: "" };
 
-    // 方向設定
-    function setDirection(dir) {
+    window.setDirection = function(dir) {
       if (!gameActive) return;
-      
-      // プレイヤーが現在ちょうどマスの上にいる（移動中でない）ときのみ次の方向を決定
       if (player.x === player.targetX && player.y === player.targetY) {
         let nextX = player.x;
         let nextY = player.y;
@@ -565,7 +584,6 @@
         if (dir === 'left') nextX--;
         if (dir === 'right') nextX++;
 
-        // 移動先が壁でなければターゲットを更新
         if (currentMap[nextY] && currentMap[nextY][nextX] !== 1) {
           player.targetX = nextX;
           player.targetY = nextY;
@@ -574,86 +592,56 @@
       }
     }
 
-    // タッチ・クリック操作の反応速度と連動性を向上
-    function handleTouchDir(dir) {
-      setDirection(dir);
-    }
-
-    // キーボード入力（移動 ＆ アイテム使用キー対応）
     window.addEventListener('keydown', (e) => {
-      if (!gameActive) return;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === '8') setDirection('up');
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === '2') setDirection('down');
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === '4') setDirection('left');
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === '6') setDirection('right');
 
-      // 1. 移動キー
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === '8' || e.key === 'Numpad8') {
-        setDirection('up');
-      }
-      if (e.key === 'ArrowDown' || e.key === 's' || e.key === '2' || e.key === 'Numpad2') {
-        setDirection('down');
-      }
-      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === '4' || e.key === 'Numpad4') {
-        setDirection('left');
-      }
-      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === '6' || e.key === 'Numpad6') {
-        setDirection('right');
-      }
-
-      // 2. アイテム使用キー
-      if (e.key === 'q' || e.key === 'Q' || e.key === '7' || e.key === 'Numpad7') {
-        useSlotItem(0);
-      }
-      if (e.key === 'e' || e.key === 'E' || e.key === '9' || e.key === 'Numpad9') {
-        useSlotItem(1);
-      }
+      if (e.key === 'q' || e.key === 'Q' || e.key === '7') useSlotItem(0);
+      if (e.key === 'e' || e.key === 'E' || e.key === '9') useSlotItem(1);
       
-      // 画面の意図しないスクロールを完全に防止
       if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '8', '2', '4', '6', 'q', 'Q', 'e', 'E', '7', '9'].includes(e.key)) {
         e.preventDefault();
       }
-    }, { passive: false });
+    });
 
-    // --- ホーム画面でのレベル選択システム ---
-    function selectStartLevel(level) {
-      selectedLevel = level;
+    window.selectStartLevel = function(level) {
+      window.selectedLevel = level;
       updateLevelSelectionUI();
     }
 
     function updateLevelSelectionUI() {
       for (let i = 1; i <= 3; i++) {
         const btn = document.getElementById(`btn-select-level-${i}`);
-        if (selectedLevel === i) {
-          btn.className = "border-4 border-emerald-500 bg-emerald-100 rounded-xl py-2 font-bold text-emerald-800 scale-105 shadow-md transition-all";
+        if (window.selectedLevel === i) {
+          btn.className = "border-4 border-emerald-500 bg-emerald-100 rounded-xl py-2 font-bold text-emerald-800 scale-105 shadow-md";
         } else {
-          btn.className = "border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100 transition-all";
+          btn.className = "border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100";
         }
       }
     }
 
-    // --- ホーム画面でのアイテム選択システム ---
-    function toggleItemSelection(itemKey) {
-      const index = chosenItems.indexOf(itemKey);
+    window.toggleItemSelection = function(itemKey) {
+      const index = window.chosenItems.indexOf(itemKey);
       if (index > -1) {
-        if (chosenItems.length > 1) {
-          chosenItems.splice(index, 1);
-        }
+        if (window.chosenItems.length > 1) window.chosenItems.splice(index, 1);
       } else {
-        if (chosenItems.length >= 2) {
-          chosenItems.shift();
-        }
-        chosenItems.push(itemKey);
+        if (window.chosenItems.length >= 2) window.chosenItems.shift();
+        window.chosenItems.push(itemKey);
       }
       updateSelectionUI();
     }
 
     function updateSelectionUI() {
       const allItems = ['freeze', 'return', 'warp', 'shield', 'magnet'];
-      
       allItems.forEach(item => {
         const btn = document.getElementById(`btn-select-${item}`);
-        if (chosenItems.includes(item)) {
+        if (window.chosenItems.includes(item)) {
           const col = ITEMS_INFO[item].tailwind;
-          btn.className = `border-4 border-${col}-500 bg-${col}-100 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer scale-105 shadow-md`;
+          btn.className = `border-4 border-${col}-500 bg-${col}-100 rounded-xl p-2 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer scale-105 shadow-md`;
         } else {
-          btn.className = `border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100`;
+          btn.className = `border-2 border-slate-200 bg-white rounded-xl p-2 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100`;
         }
       });
 
@@ -661,17 +649,14 @@
       const errorText = document.getElementById('selection-error');
       const descBox = document.getElementById('selection-desc-box');
 
-      if (chosenItems.length === 2) {
+      if (window.chosenItems.length === 2) {
         startBtn.disabled = false;
         startBtn.className = "w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-emerald-700 active:border-b-2 active:translate-y-1 shadow-lg transition-transform";
         errorText.classList.add('hidden');
-        
-        const desc1 = ITEMS_INFO[chosenItems[0]].desc;
-        const desc2 = ITEMS_INFO[chosenItems[1]].desc;
         descBox.innerHTML = `
           <p class="font-bold text-slate-700 text-xs">🎒 もっていく魔法のせいかく：</p>
-          <p>・${desc1}</p>
-          <p>・${desc2}</p>
+          <p>・${ITEMS_INFO[window.chosenItems[0]].desc}</p>
+          <p>・${ITEMS_INFO[window.chosenItems[1]].desc}</p>
         `;
         descBox.classList.remove('hidden');
       } else {
@@ -682,156 +667,111 @@
       }
     }
 
-    // ゲーム用アイテムスロットの初期設定
     function initItemSlots() {
-      const slot1Key = chosenItems[0];
-      const slot2Key = chosenItems[1];
+      const slot1Key = window.chosenItems[0];
+      const slot2Key = window.chosenItems[1];
 
-      const info1 = ITEMS_INFO[slot1Key];
-      const info2 = ITEMS_INFO[slot2Key];
+      document.getElementById('slot1-emoji').innerText = ITEMS_INFO[slot1Key].emoji;
+      document.getElementById('slot1-name').innerText = ITEMS_INFO[slot1Key].name;
+      document.getElementById('btn-use-slot1').className = `flex items-center gap-1.5 bg-${ITEMS_INFO[slot1Key].tailwind}-50 hover:bg-${ITEMS_INFO[slot1Key].tailwind}-100 active:scale-95 transition-all border-2 border-${ITEMS_INFO[slot1Key].tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
+      document.getElementById('slot1-count').className = `absolute -top-2 -right-2 bg-${ITEMS_INFO[slot1Key].tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
 
-      // スロット1のUI適用
-      document.getElementById('slot1-emoji').innerText = info1.emoji;
-      document.getElementById('slot1-name').innerText = info1.name;
-      const btn1 = document.getElementById('btn-use-slot1');
-      btn1.className = `flex items-center gap-1.5 bg-${info1.tailwind}-50 hover:bg-${info1.tailwind}-100 active:scale-95 transition-all border-2 border-${info1.tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
-      document.getElementById('slot1-count').className = `absolute -top-2 -right-2 bg-${info1.tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
-
-      // スロット2のUI適用
-      document.getElementById('slot2-emoji').innerText = info2.emoji;
-      document.getElementById('slot2-name').innerText = info2.name;
-      const btn2 = document.getElementById('btn-use-slot2');
-      btn2.className = `flex items-center gap-1.5 bg-${info2.tailwind}-50 hover:bg-${info2.tailwind}-100 active:scale-95 transition-all border-2 border-${info2.tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
-      document.getElementById('slot2-count').className = `absolute -top-2 -right-2 bg-${info2.tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
+      document.getElementById('slot2-emoji').innerText = ITEMS_INFO[slot2Key].emoji;
+      document.getElementById('slot2-name').innerText = ITEMS_INFO[slot2Key].name;
+      document.getElementById('btn-use-slot2').className = `flex items-center gap-1.5 bg-${ITEMS_INFO[slot2Key].tailwind}-50 hover:bg-${ITEMS_INFO[slot2Key].tailwind}-100 active:scale-95 transition-all border-2 border-${ITEMS_INFO[slot2Key].tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
+      document.getElementById('slot2-count').className = `absolute -top-2 -right-2 bg-${ITEMS_INFO[slot2Key].tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
 
       stockSlots = [1, 1];
       updateStockUI();
     }
 
-    // アイテム所持数の表示更新
     function updateStockUI() {
       document.getElementById('slot1-count').innerText = stockSlots[0];
       document.getElementById('slot2-count').innerText = stockSlots[1];
     }
 
-    // 魔法を発動した瞬間の文字エフェクトを設定
     function triggerTextEffect(text, color) {
       uiTextEffect.text = text;
       uiTextEffect.color = color;
-      uiTextEffect.timer = 90; // 1.5秒間表示
+      uiTextEffect.timer = 90; 
     }
 
-    // 画面に一瞬ピカッと魔法のオーラを放つ
     function triggerScreenAura(type) {
       const body = document.getElementById('game-body');
       const container = document.getElementById('canvas-container');
       const col = ITEMS_INFO[type].tailwind;
-
       body.classList.add(`bg-${col}-100`);
       container.classList.add(`${type}-aura`);
-      
       setTimeout(() => {
         body.classList.remove(`bg-${col}-100`);
         container.classList.remove(`${type}-aura`);
       }, 800);
     }
 
-    // スロットの魔法を使用
-    function useSlotItem(slotIndex) {
+    window.useSlotItem = function(slotIndex) {
       if (!gameActive) return;
       if (stockSlots[slotIndex] <= 0) return;
 
-      const itemKey = chosenItems[slotIndex];
+      const itemKey = window.chosenItems[slotIndex];
       let success = false;
 
       if (itemKey === 'freeze') {
-        ghostFreezeTime = 600; // 10秒間
+        ghostFreezeTime = 600; 
         triggerTextEffect("おばけストップ！！", "#3b82f6");
         triggerScreenAura("freeze");
         success = true;
-      } 
-      else if (itemKey === 'return') {
+      } else if (itemKey === 'return') {
         success = executeReturn();
-      }
-      else if (itemKey === 'warp') {
+      } else if (itemKey === 'warp') {
         success = executeWarp();
-      }
-      else if (itemKey === 'shield') {
-        playerShieldTime = 600; // 10秒間
+      } else if (itemKey === 'shield') {
+        playerShieldTime = 600; 
         triggerTextEffect("バリア（無敵）！！", "#ef4444");
         triggerScreenAura("shield");
-        
-        ghosts.forEach(ghost => {
-          ghost.isChasing = false;
-        });
-        
+        ghosts.forEach(g => g.isChasing = false);
         success = true;
-      }
-      else if (itemKey === 'magnet') {
+      } else if (itemKey === 'magnet') {
         success = executeMagnet();
       }
 
       if (success) {
         stockSlots[slotIndex]--;
         updateStockUI();
-        itemUsedThisStage = true;
+        itemUsedThisStage = true; 
       }
     }
 
-    // おばけリターン（おうちにもどす）を実行
     function executeReturn() {
       const levelData = LEVELS_DATA[currentLevel];
-      
       ghosts.forEach((ghost, idx) => {
-        const template = levelData.ghosts[idx] || levelData.ghosts[0];
-        ghost.x = template.x;
-        ghost.y = template.y;
-        ghost.targetX = template.x;
-        ghost.targetY = template.y;
-        ghost.animProgress = 0;
-        ghost.isChasing = false;
-        ghost.lastDir = template.lastDir;
+        const template = levelData.ghosts[idx];
+        ghost.x = template.x; ghost.y = template.y; ghost.targetX = template.x; ghost.targetY = template.y;
+        ghost.animProgress = 0; ghost.isChasing = false; ghost.lastDir = template.lastDir;
       });
-
       triggerTextEffect("おばけリターン！！", "#ec4899");
       triggerScreenAura("return");
       return true;
     }
 
-    // 緊急ワープを実行
     function executeWarp() {
-      let bestX = player.x;
-      let bestY = player.y;
-      let maxMinDist = -1;
-
+      let bestX = player.x, bestY = player.y, maxMinDist = -1;
       for (let r = 0; r < tileCountY; r++) {
         for (let c = 0; c < tileCountX; c++) {
-          if (currentMap[r][c] !== 1) {
-            let isGhostOnTile = ghosts.some(g => Math.round(g.x) === c && Math.round(g.y) === r);
-            if (isGhostOnTile) continue;
-
+          if (currentMap[r][c] !== 1) { 
+            if (ghosts.some(g => Math.round(g.x) === c && Math.round(g.y) === r)) continue;
             let minDist = 999;
             ghosts.forEach(g => {
               let dist = Math.abs(c - g.x) + Math.abs(r - g.y);
               if (dist < minDist) minDist = dist;
             });
-
             if (minDist > maxMinDist) {
-              maxMinDist = minDist;
-              bestX = c;
-              bestY = r;
+              maxMinDist = minDist; bestX = c; bestY = r;
             }
           }
         }
       }
-
       if (maxMinDist > 0) {
-        player.x = bestX;
-        player.y = bestY;
-        player.targetX = bestX;
-        player.targetY = bestY;
-        player.animProgress = 0;
-        
+        player.x = bestX; player.y = bestY; player.targetX = bestX; player.targetY = bestY; player.animProgress = 0;
         triggerTextEffect("緊急ワープ！！", "#10b981");
         triggerScreenAura("warp");
         return true;
@@ -839,58 +779,42 @@
       return false;
     }
 
-    // お星さま引き寄せを実行
     function executeMagnet() {
       let collected = 0;
-      const range = 2;
-
       for (let r = 0; r < tileCountY; r++) {
         for (let c = 0; c < tileCountX; c++) {
-          if (currentMap[r][c] === 2) {
-            let dist = Math.abs(c - player.x) + Math.abs(r - player.y);
-            if (dist <= range) {
-              currentMap[r][c] = 0;
-              totalStars--;
-              collected++;
+          if (currentMap[r][c] === 2) { 
+            if (Math.abs(c - player.x) + Math.abs(r - player.y) <= 2) {
+              currentMap[r][c] = 0; totalStars--; collected++;
             }
           }
         }
       }
-
       if (collected > 0) {
         document.getElementById('star-count').innerText = totalStars;
         triggerTextEffect(`お星さま ${collected}こ ひきよせ！`, "#f97316");
         triggerScreenAura("magnet");
-
-        if (totalStars === 0) {
-          handleStageClear();
-        }
+        if (totalStars === 0) handleStageClear();
         return true;
-      } else {
-        triggerTextEffect("まわりに星がないよ！", "#94a3b8");
-        return false;
       }
+      triggerTextEffect("まわりに星がないよ！", "#94a3b8");
+      return false;
     }
 
-    // スタート画面を表示
-    function showStartScreen() {
-      gameActive = false;
-      cancelAnimationFrame(animationFrameId);
-      clearInterval(timerInterval);
+    window.showStartScreen = function() {
+      gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval); 
       document.getElementById('screen-start').classList.remove('hidden');
       document.getElementById('screen-game').classList.add('hidden');
       document.getElementById('screen-level-clear').classList.add('hidden');
       document.getElementById('screen-clear').classList.add('hidden');
       document.getElementById('screen-over').classList.add('hidden');
-      updateLevelSelectionUI();
+      updateLevelSelectionUI(); 
       updateSelectionUI();
-      displayRanking();
+      displayRanking(); 
     }
 
-    // レベルを指定してゲーム開始
-    function startGame(level) {
+    window.startGame = function(level) {
       currentLevel = level;
-      
       document.getElementById('screen-start').classList.add('hidden');
       document.getElementById('screen-game').classList.remove('hidden');
       document.getElementById('screen-level-clear').classList.add('hidden');
@@ -899,74 +823,45 @@
 
       const levelData = LEVELS_DATA[currentLevel];
       currentMap = JSON.parse(JSON.stringify(levelData.map));
-      
-      tileCountY = currentMap.length;
-      tileCountX = currentMap[0].length;
-      TILE_SIZE = 400 / tileCountX;
+      tileCountY = currentMap.length; tileCountX = currentMap[0].length; TILE_SIZE = 400 / tileCountX;
 
-      player = { 
-        x: levelData.playerStart.x, 
-        y: levelData.playerStart.y, 
-        targetX: levelData.playerStart.x, 
-        targetY: levelData.playerStart.y, 
-        animProgress: 0 
-      };
-      
+      player = { x: levelData.playerStart.x, y: levelData.playerStart.y, targetX: levelData.playerStart.x, targetY: levelData.playerStart.y, animProgress: 0 };
       ghosts = JSON.parse(JSON.stringify(levelData.ghosts));
 
-      ghostFreezeTime = 0;
-      playerShieldTime = 0;
-      uiTextEffect.timer = 0;
-      itemUsedThisStage = false;
-
+      ghostFreezeTime = 0; playerShieldTime = 0; uiTextEffect.timer = 0; itemUsedThisStage = false;
       timeLeft = levelData.timeLimit;
       document.getElementById('info-time-left').innerText = timeLeft;
       
-      clearInterval(timerInterval);
+      clearInterval(timerInterval); 
       timerInterval = setInterval(() => {
         if (gameActive) {
           timeLeft--;
           document.getElementById('info-time-left').innerText = timeLeft;
-          if (timeLeft <= 0) {
-            handleTimeUp();
-          }
+          if (timeLeft <= 0) handleTimeUp(); 
         }
       }, 1000);
       
       initItemSlots();
       document.getElementById('info-level').innerText = currentLevel;
       countStars();
-      
       gameActive = true;
       gameLoop();
     }
 
-    function retryCurrentLevel() {
-      startGame(currentLevel);
-    }
-
-    function startNextLevel() {
-      startGame(currentLevel + 1);
-    }
+    window.retryCurrentLevel = function() { startGame(currentLevel); }
+    window.startNextLevel = function() { startGame(currentLevel + 1); }
 
     function handleTimeUp() {
-      gameActive = false;
-      cancelAnimationFrame(animationFrameId);
-      clearInterval(timerInterval);
-
+      gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval);
       document.getElementById('over-icon').innerText = "⏱️💥😱";
       document.getElementById('over-title').innerText = "じかんぎれ！";
       document.getElementById('over-message').innerText = "ざんねん！タイマーが０になっちゃった。";
-
       document.getElementById('screen-game').classList.add('hidden');
       document.getElementById('screen-over').classList.remove('hidden');
     }
 
     function handleStageClear() {
-      gameActive = false;
-      cancelAnimationFrame(animationFrameId);
-      clearInterval(timerInterval);
-
+      gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval); 
       const timePoints = timeLeft;
       const remainingItemsCount = stockSlots[0] + stockSlots[1];
       const itemBonusPoints = remainingItemsCount * 10;
@@ -1004,112 +899,102 @@
       }
     }
 
-    // --- ランキング管理 ---
-    function getLocalRanking(level) {
+    function getRankingFromLocal(level) {
       const data = localStorage.getItem(`magic_maze_ranking_level_${level}`);
       return data ? JSON.parse(data) : [];
     }
 
-    // クラウド & ローカル両対応のセーブ機能
-    async function saveScoreToRanking(level, name, score) {
-      const entryName = name || "ななしのねこ";
-      
-      // 1. ローカルストレージに保存
-      let ranking = getLocalRanking(level);
-      ranking.push({ name: entryName, score: score, date: new Date().toLocaleDateString() });
+    function addRankingToLocal(level, name, score) {
+      let ranking = getRankingFromLocal(level);
+      ranking.push({ name: name || "ななしのねこ", score: score, date: new Date().toLocaleDateString() });
       ranking.sort((a, b) => b.score - a.score);
       ranking = ranking.slice(0, 5);
       localStorage.setItem(`magic_maze_ranking_level_${level}`, JSON.stringify(ranking));
-
-      // 2. クラウドが有効な場合はFirestoreに登録 (RULE 1)
-      if (window.isCloudRankingEnabled && window.db) {
-        try {
-          const path = `/artifacts/${window.appId}/public/data/ranking_level_${level}`;
-          // Firebaseモジュール側で読み込んだモジュールを利用する
-          const { collection, addDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-          await addDoc(collection(window.db, 'artifacts', window.appId, 'public', 'data', `ranking_level_${level}`), {
-            name: entryName,
-            score: score,
-            userId: window.userId,
-            timestamp: new Date().getTime()
-          });
-        } catch (e) {
-          console.error("クラウド保存に失敗しました:", e);
-        }
-      }
     }
 
-    async function saveRanking() {
+    window.saveRanking = async function() {
       const nameInput = document.getElementById('ranking-name-input');
-      const name = nameInput.value.trim();
-      await saveScoreToRanking(currentLevel, name, finalCalculatedScore);
+      const name = nameInput.value.trim() || "ななしのねこ";
+      nameInput.disabled = true; document.getElementById('btn-save-ranking').disabled = true;
 
-      nameInput.disabled = true;
-      document.getElementById('btn-save-ranking').disabled = true;
-      document.getElementById('ranking-success-msg').classList.remove('hidden');
-      displayRanking();
-    }
+      console.log(`%c[Debug-Save] 📤 ランキング登録を試みます (Level: ${currentLevel}, Name: ${name}, Score: ${finalCalculatedScore})`, "color: #3b82f6;");
+      console.log(`%c[Debug-Save] 🎒 状態チェック: window.isCloudRankingEnabled=${window.isCloudRankingEnabled}, window.db=${window.db ? "存在する" : "null"}`, "color: #3b82f6;");
 
-    async function saveRankingFinal() {
-      const nameInput = document.getElementById('ranking-name-input-final');
-      const name = nameInput.value.trim();
-      await saveScoreToRanking(3, name, finalCalculatedScore);
-
-      nameInput.disabled = true;
-      document.getElementById('btn-save-ranking-final').disabled = true;
-      document.getElementById('ranking-success-msg-final').classList.remove('hidden');
-      displayRanking();
-    }
-
-    // ランキング描画 (クラウドデータ優先取得)
-    async function displayRanking() {
-      const select = document.getElementById('rank-level-select');
-      const level = select.value;
-      const listContainer = document.getElementById('ranking-list');
-      listContainer.innerHTML = "";
-
-      let ranking = [];
-
-      // クラウドからデータ取得を試みる (RULE 2: シンプルなクエリで全件取得してJSでソート)
       if (window.isCloudRankingEnabled && window.db) {
         try {
-          const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-          const querySnapshot = await getDocs(collection(window.db, 'artifacts', window.appId, 'public', 'data', `ranking_level_${level}`));
-          
-          querySnapshot.forEach((doc) => {
-            ranking.push(doc.data());
+          await addDoc(collection(window.db, "artifacts", "default-app-id", "public", "data", `level_${currentLevel}`), {
+            name: name, score: finalCalculatedScore, createdAt: new Date()
           });
-          
-          // メモリ上でソート & 上位5件に絞り込み (RULE 2)
-          ranking.sort((a, b) => b.score - a.score);
-          ranking = ranking.slice(0, 5);
-        } catch (e) {
-          console.error("クラウドランキングの取得に失敗。ローカルを使用します", e);
-          ranking = getLocalRanking(level);
+          console.log(`%c[Debug-Cloud] ☁️ Firestoreへのスコア保存に【成功】しました。`, "color: #10b981; font-weight: bold;");
+        } catch (error) {
+          console.error(`%c[Debug-Cloud-Error] ❌ Firestoreへの保存に失敗したため、ローカル保存に切り替えます。詳細:`, "color: #ef4444;", error);
+          addRankingToLocal(currentLevel, name, finalCalculatedScore);
         }
       } else {
-        ranking = getLocalRanking(level);
+        console.log(`%c[Debug-Local] 🏠 クラウドランキングが無効なため、ローカルストレージにスコアを保存します。`, "color: #64748b; font-style: italic;");
+        addRankingToLocal(currentLevel, name, finalCalculatedScore);
+      }
+      document.getElementById('ranking-success-msg').classList.remove('hidden');
+    }
+
+    window.saveRankingFinal = async function() {
+      const nameInput = document.getElementById('ranking-name-input-final');
+      const name = nameInput.value.trim() || "ななしのねこ";
+      nameInput.disabled = true; document.getElementById('btn-save-ranking-final').disabled = true;
+
+      console.log(`%c[Debug-SaveFinal] 📤 レベル3(最終)ランキング登録を試みます...`, "color: #3b82f6;");
+
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          await addDoc(collection(window.db, "artifacts", "default-app-id", "public", "data", "level_3"), {
+            name: name, score: finalCalculatedScore, createdAt: new Date()
+          });
+          console.log(`%c[Debug-Cloud] ☁️ Firestoreへのレベル3スコア保存に【成功】しました。`, "color: #10b981; font-weight: bold;");
+        } catch (error) {
+          console.error(`%c[Debug-Cloud-Error] ❌ レベル3保存失敗、ローカルにフォールバックします:`, "color: #ef4444;", error);
+          addRankingToLocal(3, name, finalCalculatedScore);
+        }
+      } else {
+        addRankingToLocal(3, name, finalCalculatedScore);
+      }
+      document.getElementById('ranking-success-msg-final').classList.remove('hidden');
+    }
+
+    window.displayRanking = async function() {
+      const select = document.getElementById('rank-level-select');
+      if (!select) return;
+      const level = select.value;
+      const listContainer = document.getElementById('ranking-list');
+      listContainer.innerHTML = "<p class='text-slate-400 italic text-center py-1'>よみこみ中...</p>";
+
+      console.log(`%c[Debug-Fetch] ⏳ レベル ${level} のランキングを読み込みます...`, "color: #3b82f6;");
+      let ranking = [];
+      
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          const q = query(collection(window.db, "artifacts", "default-app-id", "public", "data", `level_${level}`), orderBy("score", "desc"), limit(5));
+          const querySnapshot = await getDocs(q);
+          querySnapshot.forEach((doc) => ranking.push(doc.data()));
+          console.log(`%c[Debug-Fetch] ☁️ Firestoreから ${ranking.length} 件のデータを正常に取得しました。`, "color: #10b981;");
+        } catch (error) {
+          console.warn(`%c[Debug-Fetch-Error] ⚠️ Firestoreからのランキング読み込みに失敗しました。ローカルデータを表示します。原因:`, "color: #eab308;", error);
+          ranking = getRankingFromLocal(level);
+        }
+      } else {
+        console.log(`%c[Debug-Fetch] 🏠 ローカルストレージからランキングを読み込みます。`, "color: #64748b; font-style: italic;");
+        ranking = getRankingFromLocal(level);
       }
 
+      listContainer.innerHTML = "";
       if (ranking.length === 0) {
         listContainer.innerHTML = "<p class='text-slate-400 italic text-center py-1'>まだとうろくがありません</p>";
         return;
       }
-
-      ranking.forEach((entry, idx) => {
+      ranking.slice(0, 3).forEach((entry, idx) => {
         const item = document.createElement('div');
-        item.className = "flex justify-between items-center bg-white p-1.5 px-3 rounded-lg border border-yellow-100 shadow-sm transition-all";
-        
-        let medal = "";
-        if (idx === 0) medal = "🥇 ";
-        else if (idx === 1) medal = "🥈 ";
-        else if (idx === 2) medal = "🥉 ";
-        else medal = `${idx + 1}位: `;
-
-        item.innerHTML = `
-          <span class="truncate max-w-[150px]">${medal}${entry.name}</span>
-          <span class="text-amber-600 font-extrabold text-right">${entry.score}点</span>
-        `;
+        item.className = "flex justify-between items-center bg-white p-1 px-2.5 rounded-lg border border-yellow-100 shadow-sm";
+        let medal = idx === 0 ? "🥇 " : idx === 1 ? "🥈 " : idx === 2 ? "🥉 " : `${idx + 1}位: `;
+        item.innerHTML = `<span>${medal}${entry.name}</span><span class="text-amber-600 font-extrabold">${entry.score}点</span>`;
         listContainer.appendChild(item);
       });
     }
@@ -1118,9 +1003,7 @@
       totalStars = 0;
       for (let r = 0; r < currentMap.length; r++) {
         for (let c = 0; c < currentMap[r].length; c++) {
-          if (currentMap[r][c] === 2) {
-            totalStars++;
-          }
+          if (currentMap[r][c] === 2) totalStars++;
         }
       }
       document.getElementById('star-count').innerText = totalStars;
@@ -1128,10 +1011,7 @@
 
     function gameLoop() {
       if (!gameActive) return;
-
-      update();
-      draw();
-
+      update(); draw();
       animationFrameId = requestAnimationFrame(gameLoop);
     }
 
@@ -1142,299 +1022,168 @@
 
       const badgeFreeze = document.getElementById('badge-freeze');
       const badgeShield = document.getElementById('badge-shield');
-      
       if (ghostFreezeTime > 0) {
-        const seconds = Math.ceil(ghostFreezeTime / 60);
-        badgeFreeze.innerHTML = `<span>💤</span>停止 (${seconds}s)`;
+        badgeFreeze.innerHTML = `<span>💤</span>停止 (${Math.ceil(ghostFreezeTime / 60)}s)`;
         badgeFreeze.classList.remove('hidden');
-      } else {
-        badgeFreeze.classList.add('hidden');
-      }
+      } else { badgeFreeze.classList.add('hidden'); }
 
       if (playerShieldTime > 0) {
-        const seconds = Math.ceil(playerShieldTime / 60);
-        badgeShield.innerHTML = `<span>🛡️</span>無敵 (${seconds}s)`;
+        badgeShield.innerHTML = `<span>🛡️</span>無敵 (${Math.ceil(playerShieldTime / 60)}s)`;
         badgeShield.classList.remove('hidden');
-      } else {
-        badgeShield.classList.add('hidden');
-      }
+      } else { badgeShield.classList.add('hidden'); }
 
-      // 1. プレイヤーのなめらかな移動
       if (player.x !== player.targetX || player.y !== player.targetY) {
-        player.animProgress += 0.16; // 移動スピードを微調整
-
+        player.animProgress += 0.15;
         if (player.animProgress >= 1) {
-          player.x = player.targetX;
-          player.y = player.targetY;
-          player.animProgress = 0;
-
+          player.x = player.targetX; player.y = player.targetY; player.animProgress = 0;
           const currentTile = currentMap[player.y][player.x];
-          
           if (currentTile === 2) {
-            currentMap[player.y][player.x] = 0;
-            totalStars--;
+            currentMap[player.y][player.x] = 0; totalStars--;
             document.getElementById('star-count').innerText = totalStars;
-
-            if (totalStars === 0) {
-              handleStageClear();
-            }
-          } 
-          else if (currentTile === 3) {
-            currentMap[player.y][player.x] = 0;
-            stockSlots[0]++;
-            updateStockUI();
-            triggerTextEffect(`${ITEMS_INFO[chosenItems[0]].name} ゲット！`, ITEMS_INFO[chosenItems[0]].color);
-          } 
-          else if (currentTile === 4) {
-            currentMap[player.y][player.x] = 0;
-            stockSlots[1]++;
-            updateStockUI();
-            triggerTextEffect(`${ITEMS_INFO[chosenItems[1]].name} ゲット！`, ITEMS_INFO[chosenItems[1]].color);
+            if (totalStars === 0) handleStageClear();
+          } else if (currentTile === 3) {
+            currentMap[player.y][player.x] = 0; stockSlots[0]++; updateStockUI();
+            triggerTextEffect(`${ITEMS_INFO[window.chosenItems[0]].name} ゲット！`, ITEMS_INFO[window.chosenItems[0]].color);
+          } else if (currentTile === 4) {
+            currentMap[player.y][player.x] = 0; stockSlots[1]++; updateStockUI();
+            triggerTextEffect(`${ITEMS_INFO[window.chosenItems[1]].name} ゲット！`, ITEMS_INFO[window.chosenItems[1]].color);
           }
         }
       }
 
       let occupiedPositions = [];
-      ghosts.forEach(g => {
-        if (g.x !== g.targetX || g.y !== g.targetY) {
-          occupiedPositions.push({ x: g.targetX, y: g.targetY });
-        }
-      });
+      ghosts.forEach(g => { if (g.x !== g.targetX || g.y !== g.targetY) occupiedPositions.push({ x: g.targetX, y: g.targetY }); });
 
-      // 2. おばけの移動処理
       ghosts.forEach((ghost, idx) => {
         let distToPlayer = Math.abs(ghost.x - player.x) + Math.abs(ghost.y - player.y);
-
         if (ghostFreezeTime <= 0) {
-          if (playerShieldTime > 0) {
-            ghost.isChasing = false;
-          } else {
-            if (distToPlayer <= 5) {
-              ghost.isChasing = true;
-            } else if (distToPlayer >= 7) {
-              ghost.isChasing = false;
-            }
+          if (playerShieldTime > 0) { ghost.isChasing = false; }
+          else {
+            if (distToPlayer <= 5 && !ghost.isChasing) ghost.isChasing = true;
+            else if (distToPlayer >= 7 && ghost.isChasing) ghost.isChasing = false;
           }
 
           if (ghost.x === ghost.targetX && ghost.y === ghost.targetY) {
-            const dirs = {
-              up: { dx: 0, dy: -1, opp: 'down' },
-              down: { dx: 0, dy: 1, opp: 'up' },
-              left: { dx: -1, dy: 0, opp: 'right' },
-              right: { dx: 1, dy: 0, opp: 'left' }
-            };
-
+            const dirs = { up: { dx: 0, dy: -1, opp: 'down' }, down: { dx: 0, dy: 1, opp: 'up' }, left: { dx: -1, dy: 0, opp: 'right' }, right: { dx: 1, dy: 0, opp: 'left' } };
             let possibleDirs = [];
             for (let key in dirs) {
-              const nx = ghost.x + dirs[key].dx;
-              const ny = ghost.y + dirs[key].dy;
-              if (currentMap[ny] && currentMap[ny][nx] !== 1) {
-                possibleDirs.push({ name: key, dx: dirs[key].dx, dy: dirs[key].dy, opp: dirs[key].opp, nx, ny });
-              }
+              const nx = ghost.x + dirs[key].dx, ny = ghost.y + dirs[key].dy;
+              if (currentMap[ny] && currentMap[ny][nx] !== 1) possibleDirs.push({ name: key, dx: dirs[key].dx, dy: dirs[key].dy, opp: dirs[key].opp, nx, ny });
             }
 
             if (possibleDirs.length > 0) {
               let chosen = null;
-              let nonOverlappingDirs = possibleDirs.filter(d => {
-                return !occupiedPositions.some(pos => pos.x === d.nx && pos.y === d.ny);
-              });
-
+              let nonOverlappingDirs = possibleDirs.filter(d => !occupiedPositions.some(pos => pos.x === d.nx && pos.y === d.ny));
               let activeDirs = nonOverlappingDirs.length > 0 ? nonOverlappingDirs : possibleDirs;
 
               if (ghost.isChasing) {
-                activeDirs.sort((a, b) => {
-                  let distA = Math.abs(a.nx - player.x) + Math.abs(a.ny - player.y);
-                  let distB = Math.abs(b.nx - player.x) + Math.abs(b.ny - player.y);
-                  return distA - distB;
-                });
+                activeDirs.sort((a, b) => (Math.abs(a.nx - player.x) + Math.abs(a.ny - player.y)) - (Math.abs(b.nx - player.x) + Math.abs(b.ny - player.y)));
                 chosen = activeDirs[0];
               } else {
                 let straightDir = activeDirs.find(d => d.name === ghost.lastDir);
-
                 if (straightDir) {
-                  if (activeDirs.length > 2 && Math.random() < 0.2) {
-                    let turnDirs = activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp);
-                    chosen = turnDirs.length > 0 ? turnDirs[Math.floor(Math.random() * turnDirs.length)] : straightDir;
-                  } else {
-                    chosen = straightDir;
-                  }
+                  chosen = (activeDirs.length > 2 && Math.random() < 0.2) ? activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp)[Math.floor(Math.random() * activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp).length)] || straightDir : straightDir;
                 } else {
                   let turnDirs = activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp);
-                  if (turnDirs.length > 0) {
-                    chosen = turnDirs[Math.floor(Math.random() * turnDirs.length)];
-                  } else {
-                    chosen = activeDirs[0];
-                  }
+                  chosen = turnDirs.length > 0 ? turnDirs[Math.floor(Math.random() * turnDirs.length)] : activeDirs[0];
                 }
               }
-
               if (chosen) {
-                ghost.targetX = chosen.nx;
-                ghost.targetY = chosen.ny;
-                ghost.lastDir = chosen.name;
+                ghost.targetX = chosen.nx; ghost.targetY = chosen.ny; ghost.lastDir = chosen.name;
                 occupiedPositions.push({ x: ghost.targetX, y: ghost.targetY });
               }
             }
             ghost.animProgress = 0;
           } else {
             ghost.animProgress += ghost.speed;
-            if (ghost.animProgress >= 1) {
-              ghost.x = ghost.targetX;
-              ghost.y = ghost.targetY;
-              ghost.animProgress = 0;
-            }
+            if (ghost.animProgress >= 1) { ghost.x = ghost.targetX; ghost.y = ghost.targetY; ghost.animProgress = 0; }
           }
         }
       });
 
-      // 3. 当たり判定
-      ghosts.forEach((ghost) => {
+      ghosts.forEach((ghost, idx) => {
         let pRealX = player.x + (player.targetX - player.x) * player.animProgress;
         let pRealY = player.y + (player.targetY - player.y) * player.animProgress;
         let gRealX = ghost.x + (ghost.targetX - ghost.x) * ghost.animProgress;
         let gRealY = ghost.y + (ghost.targetY - ghost.y) * ghost.animProgress;
 
-        let dist = Math.sqrt(Math.pow(pRealX - gRealX, 2) + Math.pow(pRealY - gRealY, 2));
-        if (dist < 0.6) {
-          if (playerShieldTime > 0) {
-            return;
-          }
-
-          gameActive = false;
-          cancelAnimationFrame(animationFrameId);
-          clearInterval(timerInterval);
-
+        if (Math.sqrt(Math.pow(pRealX - gRealX, 2) + Math.pow(pRealY - gRealY, 2)) < 0.6) {
+          if (playerShieldTime > 0) return;
+          gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval); 
           document.getElementById('over-icon').innerText = "😭👻💥";
           document.getElementById('over-title').innerText = "おばけにつかまった！";
           document.getElementById('over-message').innerText = "ざんねん！おばけにタッチしちゃった。";
-
           document.getElementById('screen-game').classList.add('hidden');
           document.getElementById('screen-over').classList.remove('hidden');
         }
       });
     }
 
-    // 描画処理
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const slot1Item = window.chosenItems[0]; const slot2Item = window.chosenItems[1];
 
-      const slot1Item = chosenItems[0];
-      const slot2Item = chosenItems[1];
-
-      // マップ描画
       for (let r = 0; r < currentMap.length; r++) {
         for (let c = 0; c < currentMap[r].length; c++) {
           const tile = currentMap[r][c];
-          
           if (tile === 1) {
-            // 壁
-            ctx.fillStyle = '#475569';
-            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-            
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(c * TILE_SIZE + TILE_SIZE * 0.1, r * TILE_SIZE + TILE_SIZE * 0.1, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
-          } 
-          else if (tile === 2) {
-            // 黄色星
-            ctx.font = `${TILE_SIZE * 0.6}px 'Kiwi Maru'`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#475569'; ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            ctx.fillStyle = '#334155'; ctx.fillRect(c * TILE_SIZE + TILE_SIZE * 0.1, r * TILE_SIZE + TILE_SIZE * 0.1, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+          } else if (tile === 2) {
+            ctx.font = `${TILE_SIZE * 0.6}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText("⭐", c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2);
-          } 
-          else if (tile === 3) {
-            // お助けアイテム1
-            ctx.font = `${TILE_SIZE * 0.7}px 'Kiwi Maru'`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+          } else if (tile === 3) {
+            ctx.font = `${TILE_SIZE * 0.7}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(ITEMS_INFO[slot1Item].emoji, c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2);
-          } 
-          else if (tile === 4) {
-            // お助けアイテム2
-            ctx.font = `${TILE_SIZE * 0.7}px 'Kiwi Maru'`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+          } else if (tile === 4) {
+            ctx.font = `${TILE_SIZE * 0.7}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(ITEMS_INFO[slot2Item].emoji, c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2);
           }
         }
       }
 
-      // プレイヤー（ねこちゃん🐱）
       let pRealX = player.x + (player.targetX - player.x) * player.animProgress;
       let pRealY = player.y + (player.targetY - player.y) * player.animProgress;
-      ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText("🐱", pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE + TILE_SIZE/2);
 
-      // バリア無敵エフェクト
       if (playerShieldTime > 0) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE + TILE_SIZE/2, TILE_SIZE * 0.8, 0, 2 * Math.PI);
-        ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 + Math.sin(Date.now() / 100) * 0.25})`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        
-        ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`;
-        ctx.fillStyle = '#ef4444';
-        ctx.fillText("🛡️", pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE - TILE_SIZE * 0.35);
-        ctx.restore();
+        ctx.save(); ctx.beginPath(); ctx.arc(pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE + TILE_SIZE/2, TILE_SIZE * 0.8, 0, 2 * Math.PI);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 + Math.sin(Date.now() / 100) * 0.25})`; ctx.lineWidth = 3; ctx.stroke();
+        ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`; ctx.fillStyle = '#ef4444'; ctx.fillText("🛡️", pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE - TILE_SIZE * 0.35); ctx.restore();
       }
 
-      // おばけ
       ghosts.forEach(ghost => {
         let gRealX = ghost.x + (ghost.targetX - ghost.x) * ghost.animProgress;
         let gRealY = ghost.y + (ghost.targetY - ghost.y) * ghost.animProgress;
 
         if (ghostFreezeTime > 0) {
-          ctx.save();
-          ctx.shadowBlur = 12;
-          ctx.shadowColor = "#60a5fa";
-          ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText("🥶", gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE + TILE_SIZE/2);
-          ctx.restore();
-
-          ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`;
-          ctx.fillStyle = '#60a5fa';
-          ctx.fillText("💤", gRealX * TILE_SIZE + TILE_SIZE/2 + TILE_SIZE * 0.35, gRealY * TILE_SIZE - TILE_SIZE * 0.25);
-        } 
-        else {
-          ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
+          ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = "#60a5fa";
+          ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText("🥶", gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE + TILE_SIZE/2); ctx.restore();
+          ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`; ctx.fillStyle = '#60a5fa'; ctx.fillText("💤", gRealX * TILE_SIZE + TILE_SIZE/2 + TILE_SIZE * 0.35, gRealY * TILE_SIZE - TILE_SIZE * 0.25);
+        } else {
+          ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText(ghost.color, gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE + TILE_SIZE/2);
-
           if (ghost.isChasing && playerShieldTime <= 0) {
-            ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`;
-            ctx.fillStyle = '#f87171';
-            ctx.fillText("❗️", gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE - TILE_SIZE * 0.2);
+            ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`; ctx.fillStyle = '#f87171'; ctx.fillText("❗️", gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE - TILE_SIZE * 0.2);
           }
         }
       });
 
-      // フローティングエフェクト
       if (uiTextEffect.timer > 0) {
-        ctx.save();
-        ctx.fillStyle = uiTextEffect.color;
-        let opacity = Math.min(1, uiTextEffect.timer / 30);
-        ctx.globalAlpha = opacity;
-        ctx.font = "bold 22px 'Kiwi Maru'";
-        ctx.textAlign = "center";
-        
-        let yPos = 200 - (90 - uiTextEffect.timer) * 0.6;
-        ctx.shadowColor = "#ffffff";
-        ctx.shadowBlur = 8;
-        ctx.fillText(uiTextEffect.text, 200, yPos);
-        ctx.restore();
+        ctx.save(); ctx.fillStyle = uiTextEffect.color; ctx.globalAlpha = Math.min(1, uiTextEffect.timer / 30);
+        ctx.font = "bold 22px 'Kiwi Maru'"; ctx.textAlign = "center";
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 8;
+        ctx.fillText(uiTextEffect.text, 200, 200 - (90 - uiTextEffect.timer) * 0.6); ctx.restore();
       }
     }
 
-    // 初期起動
-    window.onload = function() {
+    // 初期起動時の処理
+    window.addEventListener('DOMContentLoaded', () => {
+      initFirebase();
       showStartScreen();
-    }
+    });
   </script>
 </body>
 </html>
