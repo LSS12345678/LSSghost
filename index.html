@@ -628,7 +628,10 @@
         }
       }
     }
-
+　　// 💡 これを追加！スマホの矢印ボタンを動かすための設定
+　　window.handleTouchDir = function(dir) {
+  　　window.setDirection(dir);
+　　};
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowUp' || e.key === 'w' || e.key === '8') setDirection('up');
       if (e.key === 'ArrowDown' || e.key === 's' || e.key === '2') setDirection('down');
