@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>どきどき！まほうのめいろゲーム</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Kiwi Maru) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght=400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Kiwi Maru', serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* タッチ時のハイライトを無効化して操作性をアップ */
+    button, div, canvas {
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 魔法発動時の画面のオーラ効果 */
+    .freeze-aura {
+      box-shadow: inset 0 0 45px #3b82f6;
+      transition: all 0.4s ease;
+    }
+    .return-aura {
+      box-shadow: inset 0 0 45px #ec4899;
+      transition: all 0.4s ease;
+    }
+    .warp-aura {
+      box-shadow: inset 0 0 45px #10b981;
+      transition: all 0.4s ease;
+    }
+    .shield-aura {
+      box-shadow: inset 0 0 45px #ef4444;
+      transition: all 0.4s ease;
+    }
+    .magnet-aura {
+      box-shadow: inset 0 0 45px #f97316;
+      transition: all 0.4s ease;
+    }
+  </style>
+</head>
+<body id="game-body" class="bg-amber-50 text-slate-800 min-h-screen flex flex-col justify-between overflow-x-hidden transition-all duration-500">
+
+  <!-- ヘッダー -->
+  <header class="bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-300 border-b-4 border-yellow-500 p-4 text-center shadow-md">
+    <h1 class="text-xl md:text-3xl font-black text-amber-955 tracking-wider flex justify-center items-center gap-2 drop-shadow-sm">
+      <span>🐱</span> どきどき！まほうのめいろ <span>👻</span>
+    </h1>
+  </header>
+
+  <!-- メインエリア -->
+  <main class="flex-grow container mx-auto px-4 py-4 max-w-lg flex flex-col justify-center items-center">
+    
+    <!-- ================= スタート画面 ================= -->
+    <div id="screen-start" class="bg-white rounded-3xl p-6 border-4 border-yellow-400 text-center shadow-2xl space-y-5 w-full transition-all">
+      <div class="text-6xl animate-bounce py-2">🐱✨👻</div>
+      
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold text-amber-800">おばけから逃げて星をあつめよう！</h2>
+        <p class="text-xs leading-relaxed text-slate-600 px-2">
+          めいろの中をうごいて、黄色い「お星さま ⭐」をぜんぶ食べるとクリアだよ！<br>
+          制限時間があるうちにクリアして、ハイスコアをめざそう！
+        </p>
+      </div>
+
+      <!-- レベル選択セクション -->
+      <div class="bg-amber-50/80 p-3 rounded-2xl border-2 border-amber-200 space-y-2">
+        <p class="text-sm font-black text-amber-900 flex justify-center items-center gap-1">
+          <span>🎮</span> あそぶ レベルを えらぼう！
+        </p>
+        <div class="grid grid-cols-3 gap-3">
+          <!-- レベル1 -->
+          <button id="btn-select-level-1" onclick="selectStartLevel(1)" class="border-4 border-emerald-500 bg-emerald-100 rounded-xl py-2 font-bold text-emerald-800 scale-105 shadow-md">
+            レベル 1
+          </button>
+          <!-- レベル2 -->
+          <button id="btn-select-level-2" onclick="selectStartLevel(2)" class="border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100 transition-all">
+            レベル 2
+          </button>
+          <!-- レベル3 -->
+          <button id="btn-select-level-3" onclick="selectStartLevel(3)" class="border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100 transition-all">
+            レベル 3
+          </button>
+        </div>
+      </div>
+
+      <!-- アイテム選択セクション -->
+      <div class="bg-amber-50/80 p-3 rounded-2xl border-2 border-amber-200 space-y-2">
+        <p class="text-sm font-black text-amber-900 flex justify-center items-center gap-1">
+          <span>🎁</span> もっていける魔法（まほう）を ２つ えらんでね！
+        </p>
+        
+        <div class="grid grid-cols-5 gap-1.5">
+          <!-- 雪の結晶：おばけストップ -->
+          <button id="btn-select-freeze" onclick="toggleItemSelection('freeze')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer">
+            <span class="text-xl">❄️</span>
+            <span class="text-[9px] font-bold mt-1 text-blue-800">ストップ</span>
+          </button>
+          <!-- おうち：おばけリターン -->
+          <button id="btn-select-return" onclick="toggleItemSelection('return')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer">
+            <span class="text-xl">🏠</span>
+            <span class="text-[9px] font-bold mt-1 text-pink-800">もどす</span>
+          </button>
+          <!-- うずまき：緊急ワープ -->
+          <button id="btn-select-warp" onclick="toggleItemSelection('warp')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer">
+            <span class="text-xl">🌀</span>
+            <span class="text-[9px] font-bold mt-1 text-emerald-800">ワープ</span>
+          </button>
+          <!-- 赤い盾：バリア -->
+          <button id="btn-select-shield" onclick="toggleItemSelection('shield')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer">
+            <span class="text-xl">🛡️</span>
+            <span class="text-[9px] font-bold mt-1 text-red-850">バリア</span>
+          </button>
+          <!-- 磁石：星ひきよせ -->
+          <button id="btn-select-magnet" onclick="toggleItemSelection('magnet')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer">
+            <span class="text-xl">🧲</span>
+            <span class="text-[9px] font-bold mt-1 text-orange-850">ひきよせ</span>
+          </button>
+        </div>
+        <p id="selection-error" class="text-[11px] text-red-500 font-bold hidden">※ まほうは ちょうど２つ えらんでね！</p>
+      </div>
+
+      <!-- 選んだアイテムの詳しい説明 -->
+      <div id="selection-desc-box" class="bg-blue-50/80 p-3 rounded-xl text-left text-[11px] text-slate-700 space-y-1 border border-blue-100 shadow-inner">
+        <!-- 動的に説明が入ります -->
+      </div>
+
+      <!-- ランキング表示セクション -->
+      <div class="bg-yellow-50/50 p-3 rounded-2xl border border-yellow-200 text-left space-y-2">
+        <p class="text-xs font-black text-amber-900 flex justify-between items-center">
+          <span class="flex items-center gap-1">🏆 レベル別ランキング (ベスト5) <span id="sync-indicator" class="text-[10px] text-emerald-600 font-normal"></span></span>
+          <select id="rank-level-select" onchange="displayRanking()" class="bg-white border border-amber-300 text-xs px-2 py-0.5 rounded font-bold">
+            <option value="1">レベル 1</option>
+            <option value="2">レベル 2</option>
+            <option value="3">レベル 3</option>
+          </select>
+        </p>
+        <div id="ranking-list" class="text-xs space-y-1 text-slate-700 font-bold">
+          <!-- ランキングが描画されます -->
+        </div>
+      </div>
+
+      <div class="bg-yellow-50/30 p-2.5 rounded-xl text-[10px] text-amber-900 text-left space-y-0.5 border border-dashed border-amber-200">
+        <p class="font-bold">⭐ ルールとボーナスポイント：</p>
+        <p>・レベル１：15x15マス / おばけ 1たい / 制限時間：<strong>100秒</strong></p>
+        <p>・レベル２：19x19マス / おばけ 2たい / 制限時間：<strong>150秒</strong></p>
+        <p>・レベル３：23x23マス / おばけ 3たい / 制限時間：<strong>300秒</strong></p>
+        <p class="text-emerald-700">※ クリア時：【<strong>のこったアイテムの数 × 10ポイント</strong>】のボーナス！</p>
+        <p class="text-red-600">※ さらに【<strong>アイテムを一度も使わずにクリア</strong>】すると、<strong>＋50ポイント</strong>！🔥</p>
+      </div>
+
+      <!-- ゲームスタートボタン -->
+      <button id="btn-start-game" onclick="startGame(selectedLevel)" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-emerald-700 active:border-b-2 active:translate-y-1 shadow-lg transition-all">
+        ゲームをはじめる！
+      </button>
+    </div>
+
+    <!-- ================= ゲームプレイ画面 ================= -->
+    <div id="screen-game" class="hidden w-full flex flex-col items-center space-y-3">
+      
+      <!-- スコアと情報 -->
+      <div class="w-full bg-white rounded-2xl p-3 border-2 border-amber-200 flex justify-between items-center shadow-md">
+        <div class="text-sm font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">
+          L <span id="info-level">1</span>
+        </div>
+
+        <!-- のこり時間（タイマー） -->
+        <div class="text-sm font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1 rounded-full flex items-center gap-1">
+          <span>⏱️ のこり:</span>
+          <span id="info-time-left" class="font-black text-base">100</span>秒
+        </div>
+
+        <!-- アクティブなアイテムタイマーバッジ -->
+        <div class="flex gap-1">
+          <span id="badge-freeze" class="hidden text-[10px] bg-blue-500 text-white font-bold px-2 py-1 rounded-lg animate-pulse flex items-center gap-0.5">
+            <span>💤</span>停止
+          </span>
+          <span id="badge-shield" class="hidden text-[10px] bg-red-500 text-white font-bold px-2 py-1 rounded-lg animate-pulse flex items-center gap-0.5">
+            <span>🛡️</span>無敵
+          </span>
+        </div>
+
+        <div class="text-sm font-bold text-slate-600 flex items-center gap-1">
+          <span>⭐ 星:</span>
+          <span id="star-count" class="text-lg text-amber-600 font-black">0</span>
+        </div>
+        <button onclick="showStartScreen()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1.5 rounded-lg font-bold transition-all">
+          もどる
+        </button>
+      </div>
+
+      <!-- キャンバスコンテナ -->
+      <div id="canvas-container" class="w-full max-w-[420px] bg-slate-900 rounded-3xl p-2 border-4 border-amber-400 shadow-2xl overflow-hidden flex items-center justify-center transition-all duration-300">
+        <canvas id="gameCanvas" width="400" height="400" class="max-w-full h-auto bg-slate-950 rounded-2xl"></canvas>
+      </div>
+
+      <!-- ================= アイテムストック＆使用パネル ================= -->
+      <div class="w-full bg-white rounded-2xl p-2.5 border-2 border-amber-200 shadow-md flex justify-around items-center">
+        <!-- スロット1 -->
+        <button id="btn-use-slot1" onclick="useSlotItem(0)" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all border-2 border-slate-300 rounded-xl px-3 py-2 relative w-[47%]">
+          <span id="slot1-emoji" class="text-2xl">❄️</span>
+          <div class="text-left overflow-hidden">
+            <p id="slot1-name" class="text-xs font-black text-slate-700 truncate">アイテム1</p>
+            <p class="text-[9px] text-slate-400 font-bold">Qキー / 7キー</p>
+          </div>
+          <span id="slot1-count" class="absolute -top-2 -right-2 bg-slate-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
+        </button>
+
+        <!-- スロット2 -->
+        <button id="btn-use-slot2" onclick="useSlotItem(1)" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all border-2 border-slate-300 rounded-xl px-3 py-2 relative w-[47%]">
+          <span id="slot2-emoji" class="text-2xl">🏠</span>
+          <div class="text-left overflow-hidden">
+            <p id="slot2-name" class="text-xs font-black text-slate-700 truncate">アイテム2</p>
+            <p class="text-[9px] text-slate-400 font-bold">Eキー / 9キー</p>
+          </div>
+          <span id="slot2-count" class="absolute -top-2 -right-2 bg-slate-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
+        </button>
+      </div>
+
+      <!-- モバイル用：十字キー操作パネル -->
+      <div class="w-full max-w-[240px] flex flex-col items-center gap-1 py-1">
+        <!-- 上ボタン -->
+        <button 
+          ontouchstart="handleTouchDir('up')" onmousedown="handleTouchDir('up')"
+          class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center transition-all active:translate-y-0.5 active:border-b-0"
+        >
+          ▲
+        </button>
+        <!-- 左右ボタン -->
+        <div class="flex justify-between w-full">
+          <button 
+            ontouchstart="handleTouchDir('left')" onmousedown="handleTouchDir('left')"
+            class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center transition-all active:translate-y-0.5 active:border-b-0"
+          >
+            ◀
+          </button>
+          <div class="w-14 h-14 flex flex-col items-center justify-center text-[10px] text-slate-400 font-bold">
+            <span>タッチ</span>
+            <span>そうさ</span>
+          </div>
+          <button 
+            ontouchstart="handleTouchDir('right')" onmousedown="handleTouchDir('right')"
+            class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center transition-all active:translate-y-0.5 active:border-b-0"
+          >
+            ▶
+          </button>
+        </div>
+        <!-- 下ボタン -->
+        <button 
+          ontouchstart="handleTouchDir('down')" onmousedown="handleTouchDir('down')"
+          class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center transition-all active:translate-y-0.5 active:border-b-0"
+        >
+          ▼
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ================= レベルクリア中間画面 ================= -->
+    <div id="screen-level-clear" class="hidden bg-white rounded-3xl p-6 text-center shadow-2xl border-4 border-yellow-400 space-y-4 w-full">
+      <div class="text-6xl animate-bounce">🎉🌟✨</div>
+      <div class="space-y-1">
+        <h2 class="text-2xl font-bold text-amber-800">レベル <span id="cleared-level-num">1</span> クリア！</h2>
+        <p class="text-sm text-slate-700 font-bold">お星さまをぜんぶあつめたよ！素晴らしい！</p>
+      </div>
+
+      <!-- スコアけっか -->
+      <div class="bg-amber-50 p-3 rounded-2xl border border-amber-200 text-left text-xs space-y-1 font-bold text-amber-900">
+        <p class="text-sm font-black border-b border-amber-200 pb-1 flex items-center gap-1">📊 クリアけっか</p>
+        <p class="flex justify-between"><span>のこり時間ポイント:</span> <span id="result-time">0点</span></p>
+        <p class="flex justify-between"><span>のこったアイテムボーナス:</span> <span id="result-bonus">0点</span></p>
+        <p class="flex justify-between text-red-600"><span>アイテム不使用ボーナス:</span> <span id="result-no-use-bonus">0点</span></p>
+        <p class="flex justify-between text-sm border-t border-amber-200 pt-1 text-emerald-700"><span>ごうけいポイント:</span> <span id="result-total-points">0点</span></p>
+      </div>
+
+      <!-- ランキング登録 -->
+      <div id="ranking-input-area" class="bg-blue-50 p-3 rounded-2xl border border-blue-200 space-y-2 text-left">
+        <p class="text-xs font-black text-blue-900">🏆 ランキングに なまえ をのせよう！</p>
+        <div class="flex gap-2">
+          <input type="text" id="ranking-name-input" maxlength="8" placeholder="なまえ (8文字まで)" class="flex-grow text-sm p-2 rounded-lg border-2 border-blue-300 focus:outline-none focus:border-blue-500 font-bold text-center">
+          <button id="btn-save-ranking" onclick="saveRanking()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-lg active:scale-95 transition-transform">
+            とうろく！
+          </button>
+        </div>
+        <p id="ranking-success-msg" class="text-[11px] text-green-600 font-bold hidden text-center">とうろくしました！✨</p>
+      </div>
+
+      <div class="space-y-2 pt-2">
+        <p class="text-xs text-slate-500">次のレベルは、もっとめいろが広くなっておばけが増えるぞ…！</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="showStartScreen()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-xl border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 text-sm">
+            🚪 やめる (タイトルへ)
+          </button>
+          <button onclick="startNextLevel()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-xl border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 text-sm flex items-center justify-center gap-1">
+            挑戦する！ ➔
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= ゲーム完全クリア画面（レベル3クリア） ================= -->
+    <div id="screen-clear" class="hidden bg-white rounded-3xl p-6 text-center shadow-2xl border-4 border-emerald-400 space-y-4 w-full">
+      <div class="text-6xl animate-bounce">🏆👑🎊</div>
+      <div class="space-y-1">
+        <h2 class="text-3xl font-bold text-emerald-600">オールクリア！</h2>
+        <p class="text-md text-slate-700 font-bold">レベル３までぜんぶクリアしたよ！おめでとう！</p>
+      </div>
+
+      <!-- スコアけっか（最終レベル用） -->
+      <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 text-left text-xs space-y-1 font-bold text-emerald-900">
+        <p class="text-sm font-black border-b border-emerald-200 pb-1 flex items-center gap-1">📊 レベル３ クリアけっか</p>
+        <p class="flex justify-between"><span>のこり時間ポイント:</span> <span id="result-time-final">0点</span></p>
+        <p class="flex justify-between"><span>のこったアイテムボーナス:</span> <span id="result-bonus-final">0点</span></p>
+        <p class="flex justify-between text-red-600"><span>アイテム不使用ボーナス:</span> <span id="result-no-use-bonus-final">0点</span></p>
+        <p class="flex justify-between text-sm border-t border-emerald-200 pt-1 text-emerald-800"><span>ごうけいポイント:</span> <span id="result-total-points-final">0点</span></p>
+      </div>
+
+      <!-- ランキング登録（最終レベル用） -->
+      <div id="ranking-input-area-final" class="bg-blue-50 p-3 rounded-2xl border border-blue-200 space-y-2 text-left">
+        <p class="text-xs font-black text-blue-900">🏆 ランキングに なまえ をのせよう！</p>
+        <div class="flex gap-2">
+          <input type="text" id="ranking-name-input-final" maxlength="8" placeholder="なまえ (8文字まで)" class="flex-grow text-sm p-2 rounded-lg border-2 border-blue-300 focus:outline-none focus:border-blue-500 font-bold text-center">
+          <button id="btn-save-ranking-final" onclick="saveRankingFinal()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-lg active:scale-95 transition-transform">
+            とうろく！
+          </button>
+        </div>
+        <p id="ranking-success-msg-final" class="text-[11px] text-green-600 font-bold hidden text-center">とうろくしました！✨</p>
+      </div>
+
+      <div class="pt-2">
+        <button onclick="showStartScreen()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg py-3 px-6 rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1">
+          🚪 タイトル画面にもどる！
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= ゲームオーバー画面 ================= -->
+    <div id="screen-over" class="hidden bg-white rounded-3xl p-6 text-center shadow-2xl border-4 border-red-400 space-y-6 w-full animate-pulse-once">
+      <div class="text-6xl" id="over-icon">😭👻💥</div>
+      <div class="space-y-2">
+        <h2 class="text-2xl font-bold text-red-500" id="over-title">おばけにつかまった！</h2>
+        <p class="text-md text-slate-700 font-bold" id="over-message">
+          ざんねん！おばけにタッチしちゃった。
+        </p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="showStartScreen()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-xl border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 text-sm transition-all">
+          🚪 タイトルにもどる
+        </button>
+        <button onclick="retryCurrentLevel()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl border-b-4 border-red-700 active:border-b-0 active:translate-y-1 text-sm transition-all">
+          もういちど！
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- フッター -->
+  <footer class="bg-amber-100 p-3 text-center text-xs text-slate-500 border-t border-amber-200">
+    <p>© どきどき！まほうのめいろゲーム</p>
+  </footer>
+
+  <!-- Firebase SDK のインポート (Firestore用) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, getDocs, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // グローバル状態・設定
+    window.db = null;
+    window.auth = null;
+    window.appId = 'default-app-id';
+    window.userId = null;
+    window.isCloudRankingEnabled = false;
+
+    // Firebase初期化と認証処理 (RULE 3)
+    const initFirebase = async () => {
+      try {
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          window.auth = getAuth(app);
+          window.db = getFirestore(app);
+          window.appId = typeof __app_id !== 'undefined' ? __app_id : 'magic-maze-game';
+
+          // 認証
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(window.auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(window.auth);
+          }
+
+          onAuthStateChanged(window.auth, (user) => {
+            if (user) {
+              window.userId = user.uid;
+              window.isCloudRankingEnabled = true;
+              document.getElementById('sync-indicator').innerText = "☁️ オンライン同期中";
+              // ランキングの初回読み込み
+              displayRanking();
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Firebaseの読み込みに失敗しました。ローカルストレージを使用します。", err);
+      }
+    };
+
+    // ロード時に実行
+    window.addEventListener('load', () => {
+      initFirebase();
+    });
+  </script>
+
+  <!-- ゲームのプログラム -->
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // アイテム情報
+    const ITEMS_INFO = {
+      freeze: { name: "おばけストップ", emoji: "❄️", desc: "❄️ おばけストップ: 10秒間、おばけ全員を凍らせて眠らせるよ！(💤マーク)", color: "#3b82f6", tailwind: "blue" },
+      return: { name: "おばけリターン", emoji: "🏠", desc: "🏠 おばけリターン: すべてのおばけを一瞬でスタート地点（おうち）に強制ワープで戻すよ！", color: "#ec4899", tailwind: "pink" },
+      warp: { name: "緊急ワープ", emoji: "🌀", desc: "🌀 緊急ワープ: 大ピンチの時、おばけから一番遠くて安全な床に一瞬でテレポートするよ！", color: "#10b981", tailwind: "emerald" },
+      shield: { name: "バリア(無敵)", emoji: "🛡️", desc: "🛡️ バリア(無敵): 10秒間、おばけから姿が見えなくなっておばけに当たっても平気だよ！(🛡️マーク)", color: "#ef4444", tailwind: "red" },
+      magnet: { name: "星ひきよせ", emoji: "🧲", desc: "🧲 星ひきよせ: ねこちゃんのまわり２マスにある黄色いお星さまをまとめて回収するよ！", color: "#f97316", tailwind: "orange" }
+    };
+
+    // レベルごとの設定
+    const LEVELS_DATA = {
+      1: {
+        timeLimit: 100,
+        map: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,2,2,3,2,2,1,2,2,2,4,2,2,2,1], 
+          [1,2,1,1,2,1,1,2,1,1,2,1,1,2,1],
+          [1,2,1,2,2,2,2,2,2,2,2,2,1,2,1],
+          [1,2,1,2,1,1,1,1,1,1,1,2,1,2,1],
+          [1,2,2,2,1,0,0,0,0,0,1,2,2,2,1], 
+          [1,1,1,2,1,0,1,1,1,0,1,2,1,1,1],
+          [1,0,2,2,2,0,1,0,1,0,2,2,2,0,1],
+          [1,1,1,2,1,0,1,1,1,0,1,2,1,1,1],
+          [1,2,2,2,1,0,0,0,0,0,1,2,2,2,1],
+          [1,2,1,2,1,1,1,1,1,1,1,2,1,2,1],
+          [1,2,1,2,2,2,2,2,2,2,2,2,1,2,1],
+          [1,2,1,1,2,1,1,2,1,1,2,1,1,2,1],
+          [1,2,2,2,4,2,2,2,1,2,2,3,2,2,1], 
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        playerStart: { x: 7, y: 1 },
+        ghosts: [
+          { x: 13, y: 13, targetX: 13, targetY: 13, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.015, isChasing: false }
+        ]
+      },
+      2: {
+        timeLimit: 150,
+        map: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,2,2,3,2,2,2,2,2,1,2,2,2,2,2,2,4,2,1], 
+          [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
+          [1,2,1,2,2,2,1,2,2,2,2,2,1,2,2,2,1,2,1],
+          [1,2,1,2,1,2,1,2,1,1,1,2,1,2,1,2,1,2,1],
+          [1,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,1],
+          [1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1],
+          [1,2,2,2,2,2,1,2,2,1,2,2,1,2,2,2,2,2,1],
+          [1,2,1,1,1,2,1,2,1,0,1,2,1,2,1,1,1,2,1],
+          [1,2,1,2,2,2,2,2,1,0,1,2,2,2,2,2,1,2,1],
+          [1,2,1,1,1,2,1,2,1,0,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,2,2,1,2,2,1,2,2,1,2,2,2,2,2,1],
+          [1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1],
+          [1,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,1],
+          [1,2,1,2,1,2,1,2,1,1,1,2,1,2,1,2,1,2,1],
+          [1,2,1,2,2,2,1,2,2,2,2,2,1,2,2,2,1,2,1],
+          [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
+          [1,2,2,4,2,2,2,2,2,1,2,2,2,2,2,2,3,2,1], 
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        playerStart: { x: 9, y: 1 },
+        ghosts: [
+          { x: 1, y: 17, targetX: 1, targetY: 17, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.02, isChasing: false },
+          { x: 17, y: 17, targetX: 17, targetY: 17, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.02, isChasing: false }
+        ]
+      },
+      3: {
+        timeLimit: 300,
+        map: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,2,2,3,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,4,2,1], 
+          [1,2,1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1,2,1],
+          [1,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,1],
+          [1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1],
+          [1,2,2,2,1,2,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,1],
+          [1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1],
+          [1,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,1],
+          [1,2,1,1,1,2,1,2,1,1,1,0,1,1,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,1,2,2,2,1,0,0,0,0,0,1,2,2,2,1,2,2,2,1],
+          [1,1,1,2,1,1,1,2,1,0,1,1,1,0,1,2,1,1,1,2,1,1,1],
+          [1,0,2,2,2,2,1,2,1,0,1,1,1,0,1,2,1,2,2,2,2,0,1],
+          [1,1,1,2,1,2,1,2,1,0,1,1,1,0,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,1,2,2,2,1,0,0,0,0,0,1,2,2,2,1,2,2,2,1],
+          [1,2,1,1,1,2,1,2,1,1,1,0,1,1,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,1],
+          [1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1],
+          [1,2,2,2,1,2,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,1],
+          [1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1],
+          [1,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,1],
+          [1,2,1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1,2,1],
+          [1,2,2,4,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,3,2,1], 
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        playerStart: { x: 11, y: 1 },
+        ghosts: [
+          { x: 1, y: 21, targetX: 1, targetY: 21, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.025, isChasing: false },
+          { x: 21, y: 21, targetX: 21, targetY: 21, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.025, isChasing: false },
+          { x: 11, y: 21, targetX: 11, targetY: 21, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.025, isChasing: false }
+        ]
+      }
+    };
+
+    let selectedLevel = 1; // プレイヤーがセレクトした開始レベル
+    let currentLevel = 1;
+    let currentMap = [];
+    let tileCountX = 15;
+    let tileCountY = 15;
+    let TILE_SIZE = 26.6;
+    
+    // キャラクターの状態
+    let player = { x: 7, y: 1, targetX: 7, targetY: 1, animProgress: 0 };
+    let ghosts = [];
+    let totalStars = 0;
+    let gameActive = false;
+    let animationFrameId;
+
+    // プレイヤーがホーム画面で選んだアイテム２つ
+    let chosenItems = ['freeze', 'return'];
+    let stockSlots = [1, 1]; // 各スロットの所持数
+
+    // 発動中のまほうタイマー（フレーム数：60fps）
+    let ghostFreezeTime = 0; // おばけ停止（10秒 = 600フレーム）
+    let playerShieldTime = 0; // バリア無敵（10秒 = 600フレーム）
+
+    // ゲーム制限時間、お助けアイテムフラグ、獲得スコア
+    let timeLeft = 100; // 残り秒数
+    let timerInterval = null; // 時間を測るタイマーID
+    let itemUsedThisStage = false; // アイテムを今回のステージで一度でも使ったかどうかのフラグ
+    let finalCalculatedScore = 0; // 今回の合計獲得スコア
+
+    // 画面に浮かび上がる文字エフェクト用
+    let uiTextEffect = { text: "", timer: 0, color: "" };
+
+    // 方向設定
+    function setDirection(dir) {
+      if (!gameActive) return;
+      
+      // プレイヤーが現在ちょうどマスの上にいる（移動中でない）ときのみ次の方向を決定
+      if (player.x === player.targetX && player.y === player.targetY) {
+        let nextX = player.x;
+        let nextY = player.y;
+
+        if (dir === 'up') nextY--;
+        if (dir === 'down') nextY++;
+        if (dir === 'left') nextX--;
+        if (dir === 'right') nextX++;
+
+        // 移動先が壁でなければターゲットを更新
+        if (currentMap[nextY] && currentMap[nextY][nextX] !== 1) {
+          player.targetX = nextX;
+          player.targetY = nextY;
+          player.animProgress = 0;
+        }
+      }
+    }
+
+    // タッチ・クリック操作の反応速度と連動性を向上
+    function handleTouchDir(dir) {
+      setDirection(dir);
+    }
+
+    // キーボード入力（移動 ＆ アイテム使用キー対応）
+    window.addEventListener('keydown', (e) => {
+      if (!gameActive) return;
+
+      // 1. 移動キー
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === '8' || e.key === 'Numpad8') {
+        setDirection('up');
+      }
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === '2' || e.key === 'Numpad2') {
+        setDirection('down');
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === '4' || e.key === 'Numpad4') {
+        setDirection('left');
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === '6' || e.key === 'Numpad6') {
+        setDirection('right');
+      }
+
+      // 2. アイテム使用キー
+      if (e.key === 'q' || e.key === 'Q' || e.key === '7' || e.key === 'Numpad7') {
+        useSlotItem(0);
+      }
+      if (e.key === 'e' || e.key === 'E' || e.key === '9' || e.key === 'Numpad9') {
+        useSlotItem(1);
+      }
+      
+      // 画面の意図しないスクロールを完全に防止
+      if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '8', '2', '4', '6', 'q', 'Q', 'e', 'E', '7', '9'].includes(e.key)) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // --- ホーム画面でのレベル選択システム ---
+    function selectStartLevel(level) {
+      selectedLevel = level;
+      updateLevelSelectionUI();
+    }
+
+    function updateLevelSelectionUI() {
+      for (let i = 1; i <= 3; i++) {
+        const btn = document.getElementById(`btn-select-level-${i}`);
+        if (selectedLevel === i) {
+          btn.className = "border-4 border-emerald-500 bg-emerald-100 rounded-xl py-2 font-bold text-emerald-800 scale-105 shadow-md transition-all";
+        } else {
+          btn.className = "border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100 transition-all";
+        }
+      }
+    }
+
+    // --- ホーム画面でのアイテム選択システム ---
+    function toggleItemSelection(itemKey) {
+      const index = chosenItems.indexOf(itemKey);
+      if (index > -1) {
+        if (chosenItems.length > 1) {
+          chosenItems.splice(index, 1);
+        }
+      } else {
+        if (chosenItems.length >= 2) {
+          chosenItems.shift();
+        }
+        chosenItems.push(itemKey);
+      }
+      updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+      const allItems = ['freeze', 'return', 'warp', 'shield', 'magnet'];
+      
+      allItems.forEach(item => {
+        const btn = document.getElementById(`btn-select-${item}`);
+        if (chosenItems.includes(item)) {
+          const col = ITEMS_INFO[item].tailwind;
+          btn.className = `border-4 border-${col}-500 bg-${col}-100 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer scale-105 shadow-md`;
+        } else {
+          btn.className = `border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100`;
+        }
+      });
+
+      const startBtn = document.getElementById('btn-start-game');
+      const errorText = document.getElementById('selection-error');
+      const descBox = document.getElementById('selection-desc-box');
+
+      if (chosenItems.length === 2) {
+        startBtn.disabled = false;
+        startBtn.className = "w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-emerald-700 active:border-b-2 active:translate-y-1 shadow-lg transition-transform";
+        errorText.classList.add('hidden');
+        
+        const desc1 = ITEMS_INFO[chosenItems[0]].desc;
+        const desc2 = ITEMS_INFO[chosenItems[1]].desc;
+        descBox.innerHTML = `
+          <p class="font-bold text-slate-700 text-xs">🎒 もっていく魔法のせいかく：</p>
+          <p>・${desc1}</p>
+          <p>・${desc2}</p>
+        `;
+        descBox.classList.remove('hidden');
+      } else {
+        startBtn.disabled = true;
+        startBtn.className = "w-full bg-slate-300 text-slate-500 font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-slate-400 cursor-not-allowed";
+        errorText.classList.remove('hidden');
+        descBox.classList.add('hidden');
+      }
+    }
+
+    // ゲーム用アイテムスロットの初期設定
+    function initItemSlots() {
+      const slot1Key = chosenItems[0];
+      const slot2Key = chosenItems[1];
+
+      const info1 = ITEMS_INFO[slot1Key];
+      const info2 = ITEMS_INFO[slot2Key];
+
+      // スロット1のUI適用
+      document.getElementById('slot1-emoji').innerText = info1.emoji;
+      document.getElementById('slot1-name').innerText = info1.name;
+      const btn1 = document.getElementById('btn-use-slot1');
+      btn1.className = `flex items-center gap-1.5 bg-${info1.tailwind}-50 hover:bg-${info1.tailwind}-100 active:scale-95 transition-all border-2 border-${info1.tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
+      document.getElementById('slot1-count').className = `absolute -top-2 -right-2 bg-${info1.tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
+
+      // スロット2のUI適用
+      document.getElementById('slot2-emoji').innerText = info2.emoji;
+      document.getElementById('slot2-name').innerText = info2.name;
+      const btn2 = document.getElementById('btn-use-slot2');
+      btn2.className = `flex items-center gap-1.5 bg-${info2.tailwind}-50 hover:bg-${info2.tailwind}-100 active:scale-95 transition-all border-2 border-${info2.tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
+      document.getElementById('slot2-count').className = `absolute -top-2 -right-2 bg-${info2.tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
+
+      stockSlots = [1, 1];
+      updateStockUI();
+    }
+
+    // アイテム所持数の表示更新
+    function updateStockUI() {
+      document.getElementById('slot1-count').innerText = stockSlots[0];
+      document.getElementById('slot2-count').innerText = stockSlots[1];
+    }
+
+    // 魔法を発動した瞬間の文字エフェクトを設定
+    function triggerTextEffect(text, color) {
+      uiTextEffect.text = text;
+      uiTextEffect.color = color;
+      uiTextEffect.timer = 90; // 1.5秒間表示
+    }
+
+    // 画面に一瞬ピカッと魔法のオーラを放つ
+    function triggerScreenAura(type) {
+      const body = document.getElementById('game-body');
+      const container = document.getElementById('canvas-container');
+      const col = ITEMS_INFO[type].tailwind;
+
+      body.classList.add(`bg-${col}-100`);
+      container.classList.add(`${type}-aura`);
+      
+      setTimeout(() => {
+        body.classList.remove(`bg-${col}-100`);
+        container.classList.remove(`${type}-aura`);
+      }, 800);
+    }
+
+    // スロットの魔法を使用
+    function useSlotItem(slotIndex) {
+      if (!gameActive) return;
+      if (stockSlots[slotIndex] <= 0) return;
+
+      const itemKey = chosenItems[slotIndex];
+      let success = false;
+
+      if (itemKey === 'freeze') {
+        ghostFreezeTime = 600; // 10秒間
+        triggerTextEffect("おばけストップ！！", "#3b82f6");
+        triggerScreenAura("freeze");
+        success = true;
+      } 
+      else if (itemKey === 'return') {
+        success = executeReturn();
+      }
+      else if (itemKey === 'warp') {
+        success = executeWarp();
+      }
+      else if (itemKey === 'shield') {
+        playerShieldTime = 600; // 10秒間
+        triggerTextEffect("バリア（無敵）！！", "#ef4444");
+        triggerScreenAura("shield");
+        
+        ghosts.forEach(ghost => {
+          ghost.isChasing = false;
+        });
+        
+        success = true;
+      }
+      else if (itemKey === 'magnet') {
+        success = executeMagnet();
+      }
+
+      if (success) {
+        stockSlots[slotIndex]--;
+        updateStockUI();
+        itemUsedThisStage = true;
+      }
+    }
+
+    // おばけリターン（おうちにもどす）を実行
+    function executeReturn() {
+      const levelData = LEVELS_DATA[currentLevel];
+      
+      ghosts.forEach((ghost, idx) => {
+        const template = levelData.ghosts[idx] || levelData.ghosts[0];
+        ghost.x = template.x;
+        ghost.y = template.y;
+        ghost.targetX = template.x;
+        ghost.targetY = template.y;
+        ghost.animProgress = 0;
+        ghost.isChasing = false;
+        ghost.lastDir = template.lastDir;
+      });
+
+      triggerTextEffect("おばけリターン！！", "#ec4899");
+      triggerScreenAura("return");
+      return true;
+    }
+
+    // 緊急ワープを実行
+    function executeWarp() {
+      let bestX = player.x;
+      let bestY = player.y;
+      let maxMinDist = -1;
+
+      for (let r = 0; r < tileCountY; r++) {
+        for (let c = 0; c < tileCountX; c++) {
+          if (currentMap[r][c] !== 1) {
+            let isGhostOnTile = ghosts.some(g => Math.round(g.x) === c && Math.round(g.y) === r);
+            if (isGhostOnTile) continue;
+
+            let minDist = 999;
+            ghosts.forEach(g => {
+              let dist = Math.abs(c - g.x) + Math.abs(r - g.y);
+              if (dist < minDist) minDist = dist;
+            });
+
+            if (minDist > maxMinDist) {
+              maxMinDist = minDist;
+              bestX = c;
+              bestY = r;
+            }
+          }
+        }
+      }
+
+      if (maxMinDist > 0) {
+        player.x = bestX;
+        player.y = bestY;
+        player.targetX = bestX;
+        player.targetY = bestY;
+        player.animProgress = 0;
+        
+        triggerTextEffect("緊急ワープ！！", "#10b981");
+        triggerScreenAura("warp");
+        return true;
+      }
+      return false;
+    }
+
+    // お星さま引き寄せを実行
+    function executeMagnet() {
+      let collected = 0;
+      const range = 2;
+
+      for (let r = 0; r < tileCountY; r++) {
+        for (let c = 0; c < tileCountX; c++) {
+          if (currentMap[r][c] === 2) {
+            let dist = Math.abs(c - player.x) + Math.abs(r - player.y);
+            if (dist <= range) {
+              currentMap[r][c] = 0;
+              totalStars--;
+              collected++;
+            }
+          }
+        }
+      }
+
+      if (collected > 0) {
+        document.getElementById('star-count').innerText = totalStars;
+        triggerTextEffect(`お星さま ${collected}こ ひきよせ！`, "#f97316");
+        triggerScreenAura("magnet");
+
+        if (totalStars === 0) {
+          handleStageClear();
+        }
+        return true;
+      } else {
+        triggerTextEffect("まわりに星がないよ！", "#94a3b8");
+        return false;
+      }
+    }
+
+    // スタート画面を表示
+    function showStartScreen() {
+      gameActive = false;
+      cancelAnimationFrame(animationFrameId);
+      clearInterval(timerInterval);
+      document.getElementById('screen-start').classList.remove('hidden');
+      document.getElementById('screen-game').classList.add('hidden');
+      document.getElementById('screen-level-clear').classList.add('hidden');
+      document.getElementById('screen-clear').classList.add('hidden');
+      document.getElementById('screen-over').classList.add('hidden');
+      updateLevelSelectionUI();
+      updateSelectionUI();
+      displayRanking();
+    }
+
+    // レベルを指定してゲーム開始
+    function startGame(level) {
+      currentLevel = level;
+      
+      document.getElementById('screen-start').classList.add('hidden');
+      document.getElementById('screen-game').classList.remove('hidden');
+      document.getElementById('screen-level-clear').classList.add('hidden');
+      document.getElementById('screen-clear').classList.add('hidden');
+      document.getElementById('screen-over').classList.add('hidden');
+
+      const levelData = LEVELS_DATA[currentLevel];
+      currentMap = JSON.parse(JSON.stringify(levelData.map));
+      
+      tileCountY = currentMap.length;
+      tileCountX = currentMap[0].length;
+      TILE_SIZE = 400 / tileCountX;
+
+      player = { 
+        x: levelData.playerStart.x, 
+        y: levelData.playerStart.y, 
+        targetX: levelData.playerStart.x, 
+        targetY: levelData.playerStart.y, 
+        animProgress: 0 
+      };
+      
+      ghosts = JSON.parse(JSON.stringify(levelData.ghosts));
+
+      ghostFreezeTime = 0;
+      playerShieldTime = 0;
+      uiTextEffect.timer = 0;
+      itemUsedThisStage = false;
+
+      timeLeft = levelData.timeLimit;
+      document.getElementById('info-time-left').innerText = timeLeft;
+      
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (gameActive) {
+          timeLeft--;
+          document.getElementById('info-time-left').innerText = timeLeft;
+          if (timeLeft <= 0) {
+            handleTimeUp();
+          }
+        }
+      }, 1000);
+      
+      initItemSlots();
+      document.getElementById('info-level').innerText = currentLevel;
+      countStars();
+      
+      gameActive = true;
+      gameLoop();
+    }
+
+    function retryCurrentLevel() {
+      startGame(currentLevel);
+    }
+
+    function startNextLevel() {
+      startGame(currentLevel + 1);
+    }
+
+    function handleTimeUp() {
+      gameActive = false;
+      cancelAnimationFrame(animationFrameId);
+      clearInterval(timerInterval);
+
+      document.getElementById('over-icon').innerText = "⏱️💥😱";
+      document.getElementById('over-title').innerText = "じかんぎれ！";
+      document.getElementById('over-message').innerText = "ざんねん！タイマーが０になっちゃった。";
+
+      document.getElementById('screen-game').classList.add('hidden');
+      document.getElementById('screen-over').classList.remove('hidden');
+    }
+
+    function handleStageClear() {
+      gameActive = false;
+      cancelAnimationFrame(animationFrameId);
+      clearInterval(timerInterval);
+
+      const timePoints = timeLeft;
+      const remainingItemsCount = stockSlots[0] + stockSlots[1];
+      const itemBonusPoints = remainingItemsCount * 10;
+      const noItemUseBonus = !itemUsedThisStage ? 50 : 0;
+      
+      finalCalculatedScore = timePoints + itemBonusPoints + noItemUseBonus;
+
+      if (currentLevel < 3) {
+        document.getElementById('cleared-level-num').innerText = currentLevel;
+        document.getElementById('result-time').innerText = `${timePoints}点 (${timePoints}秒のこり)`;
+        document.getElementById('result-bonus').innerText = `${itemBonusPoints}点 (のこったアイテム: ${remainingItemsCount}こ)`;
+        document.getElementById('result-no-use-bonus').innerText = `${noItemUseBonus}点 ${!itemUsedThisStage ? '🔥(一度も使わなかった！)' : '(使いました)'}`;
+        document.getElementById('result-total-points').innerText = `${finalCalculatedScore}点`;
+
+        document.getElementById('ranking-name-input').value = "";
+        document.getElementById('ranking-name-input').disabled = false;
+        document.getElementById('btn-save-ranking').disabled = false;
+        document.getElementById('ranking-success-msg').classList.add('hidden');
+
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-level-clear').classList.remove('hidden');
+      } else {
+        document.getElementById('result-time-final').innerText = `${timePoints}点 (${timePoints}秒のこり)`;
+        document.getElementById('result-bonus-final').innerText = `${itemBonusPoints}点 (のこったアイテム: ${remainingItemsCount}こ)`;
+        document.getElementById('result-no-use-bonus-final').innerText = `${noItemUseBonus}点 ${!itemUsedThisStage ? '🔥(一度も使わなかった！)' : '(使いました)'}`;
+        document.getElementById('result-total-points-final').innerText = `${finalCalculatedScore}点`;
+
+        document.getElementById('ranking-name-input-final').value = "";
+        document.getElementById('ranking-name-input-final').disabled = false;
+        document.getElementById('btn-save-ranking-final').disabled = false;
+        document.getElementById('ranking-success-msg-final').classList.add('hidden');
+
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-clear').classList.remove('hidden');
+      }
+    }
+
+    // --- ランキング管理 ---
+    function getLocalRanking(level) {
+      const data = localStorage.getItem(`magic_maze_ranking_level_${level}`);
+      return data ? JSON.parse(data) : [];
+    }
+
+    // クラウド & ローカル両対応のセーブ機能
+    async function saveScoreToRanking(level, name, score) {
+      const entryName = name || "ななしのねこ";
+      
+      // 1. ローカルストレージに保存
+      let ranking = getLocalRanking(level);
+      ranking.push({ name: entryName, score: score, date: new Date().toLocaleDateString() });
+      ranking.sort((a, b) => b.score - a.score);
+      ranking = ranking.slice(0, 5);
+      localStorage.setItem(`magic_maze_ranking_level_${level}`, JSON.stringify(ranking));
+
+      // 2. クラウドが有効な場合はFirestoreに登録 (RULE 1)
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          const path = `/artifacts/${window.appId}/public/data/ranking_level_${level}`;
+          // Firebaseモジュール側で読み込んだモジュールを利用する
+          const { collection, addDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+          await addDoc(collection(window.db, 'artifacts', window.appId, 'public', 'data', `ranking_level_${level}`), {
+            name: entryName,
+            score: score,
+            userId: window.userId,
+            timestamp: new Date().getTime()
+          });
+        } catch (e) {
+          console.error("クラウド保存に失敗しました:", e);
+        }
+      }
+    }
+
+    async function saveRanking() {
+      const nameInput = document.getElementById('ranking-name-input');
+      const name = nameInput.value.trim();
+      await saveScoreToRanking(currentLevel, name, finalCalculatedScore);
+
+      nameInput.disabled = true;
+      document.getElementById('btn-save-ranking').disabled = true;
+      document.getElementById('ranking-success-msg').classList.remove('hidden');
+      displayRanking();
+    }
+
+    async function saveRankingFinal() {
+      const nameInput = document.getElementById('ranking-name-input-final');
+      const name = nameInput.value.trim();
+      await saveScoreToRanking(3, name, finalCalculatedScore);
+
+      nameInput.disabled = true;
+      document.getElementById('btn-save-ranking-final').disabled = true;
+      document.getElementById('ranking-success-msg-final').classList.remove('hidden');
+      displayRanking();
+    }
+
+    // ランキング描画 (クラウドデータ優先取得)
+    async function displayRanking() {
+      const select = document.getElementById('rank-level-select');
+      const level = select.value;
+      const listContainer = document.getElementById('ranking-list');
+      listContainer.innerHTML = "";
+
+      let ranking = [];
+
+      // クラウドからデータ取得を試みる (RULE 2: シンプルなクエリで全件取得してJSでソート)
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+          const querySnapshot = await getDocs(collection(window.db, 'artifacts', window.appId, 'public', 'data', `ranking_level_${level}`));
+          
+          querySnapshot.forEach((doc) => {
+            ranking.push(doc.data());
+          });
+          
+          // メモリ上でソート & 上位5件に絞り込み (RULE 2)
+          ranking.sort((a, b) => b.score - a.score);
+          ranking = ranking.slice(0, 5);
+        } catch (e) {
+          console.error("クラウドランキングの取得に失敗。ローカルを使用します", e);
+          ranking = getLocalRanking(level);
+        }
+      } else {
+        ranking = getLocalRanking(level);
+      }
+
+      if (ranking.length === 0) {
+        listContainer.innerHTML = "<p class='text-slate-400 italic text-center py-1'>まだとうろくがありません</p>";
+        return;
+      }
+
+      ranking.forEach((entry, idx) => {
+        const item = document.createElement('div');
+        item.className = "flex justify-between items-center bg-white p-1.5 px-3 rounded-lg border border-yellow-100 shadow-sm transition-all";
+        
+        let medal = "";
+        if (idx === 0) medal = "🥇 ";
+        else if (idx === 1) medal = "🥈 ";
+        else if (idx === 2) medal = "🥉 ";
+        else medal = `${idx + 1}位: `;
+
+        item.innerHTML = `
+          <span class="truncate max-w-[150px]">${medal}${entry.name}</span>
+          <span class="text-amber-600 font-extrabold text-right">${entry.score}点</span>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    function countStars() {
+      totalStars = 0;
+      for (let r = 0; r < currentMap.length; r++) {
+        for (let c = 0; c < currentMap[r].length; c++) {
+          if (currentMap[r][c] === 2) totalStars++;
+        }
+      }
+      document.getElementById('star-count').innerText = totalStars;
+    }
+
+    // 💡 スマホ・タブレット専用：反応速度MAX＆押しっぱなし対応操作の設定
+    function setupMobileControls() {
+      const dirs = ['up', 'down', 'left', 'right'];
+      
+      dirs.forEach(dir => {
+        const btn = document.getElementById(`btn-dir-${dir}`);
+        if (!btn) return;
+
+        // スマホでボタンに指が触れた瞬間
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault(); // 画面の勝手なスクロールや拡大を100%強制ブロック！
+          activeTouchDir = dir;
+          setDirection(dir);
+        }, { passive: false });
+
+        // スマホから指が離れたとき
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          if (activeTouchDir === dir) {
+            activeTouchDir = null;
+          }
+        }, { passive: false });
+
+        // PC（クリック）でのテストプレイ用設定
+        btn.addEventListener('mousedown', () => {
+          activeTouchDir = dir;
+          setDirection(dir);
+        });
+
+        btn.addEventListener('mouseup', () => {
+          if (activeTouchDir === dir) {
+            activeTouchDir = null;
+          }
+        });
+
+        btn.addEventListener('mouseleave', () => {
+          if (activeTouchDir === dir) {
+            activeTouchDir = null;
+          }
+        });
+      });
+    }
+
+    // 初期起動時の処理
+    window.addEventListener('DOMContentLoaded', () => {
+      initFirebase();
+      showStartScreen();
+      
+      // 💡 モバイル用操作システムを起動
+      setupMobileControls();
+    });
+  </script>
+</body>
+</html>
