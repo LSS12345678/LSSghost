@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>どきどき！まほうのめいろゲーム</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Kiwi Maru) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght=400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Kiwi Maru', serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* タッチ時のハイライトを無効化して操作性をアップ */
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 魔法発動時の画面のオーラ効果 */
+    .freeze-aura {
+      box-shadow: inset 0 0 35px #3b82f6;
+      transition: all 0.5s ease;
+    }
+    .return-aura {
+      box-shadow: inset 0 0 35px #ec4899;
+      transition: all 0.5s ease;
+    }
+    .warp-aura {
+      box-shadow: inset 0 0 35px #10b981;
+      transition: all 0.5s ease;
+    }
+    .shield-aura {
+      box-shadow: inset 0 0 35px #ef4444;
+      transition: all 0.5s ease;
+    }
+    .magnet-aura {
+      box-shadow: inset 0 0 35px #f97316;
+      transition: all 0.5s ease;
+    }
+  </style>
+  
+  <!-- 💡 Vercelの環境変数を受け取る宣言（安全対策） -->
+  <script>
+    try {
+      window.__firebase_config = '<!-- @process.env.__firebase_config -->';
+    } catch (e) {
+      window.__firebase_config = undefined;
+    }
+  </script>
+</head>
+<body id="game-body" class="bg-amber-50 text-slate-800 min-h-screen flex flex-col justify-between overflow-x-hidden transition-all duration-500">
+
+  <!-- ヘッダー -->
+  <header class="bg-yellow-400 border-b-4 border-yellow-500 p-3 text-center shadow-md">
+    <h1 class="text-xl md:text-2xl font-bold text-amber-900 tracking-wider flex justify-center items-center gap-2">
+      <span>🐱</span> どきどき！まほうのめいろ <span>👻</span>
+    </h1>
+  </header>
+
+  <!-- メインエリア -->
+  <main class="flex-grow container mx-auto px-4 py-3 max-w-lg flex flex-col justify-center items-center">
+    
+    <!-- ================= スタート画面 ================= -->
+    <div id="screen-start" class="bg-white rounded-3xl p-6 border-4 border-yellow-400 text-center shadow-xl space-y-4 w-full">
+      <div class="text-5xl animate-bounce">🐱✨👻</div>
+      
+      <div class="space-y-1">
+        <h2 class="text-lg font-bold text-amber-800">おばけから逃げて星をあつめよう！</h2>
+        <p class="text-xs leading-relaxed text-slate-600">
+          めいろの中をうごいて、黄色い「お星さま ⭐」をぜんぶ食べるとクリアだよ！<br>
+          <span class="text-red-500 font-bold">のこり時間</span>があるうちにクリアして、ハイスコアをめざそう！
+        </p>
+      </div>
+
+      <!-- レベル選択セクション -->
+      <div class="bg-amber-50 p-3 rounded-2xl border-2 border-amber-200 space-y-2">
+        <p class="text-sm font-black text-amber-900 flex justify-center items-center gap-1">
+          <span>🎮</span> あそぶ レベルを えらぼう！
+        </p>
+        <div class="grid grid-cols-3 gap-3">
+          <button id="btn-select-level-1" onclick="selectStartLevel(1)" class="border-4 border-emerald-500 bg-emerald-100 rounded-xl py-2 font-bold text-emerald-800 scale-105 shadow-md">
+            レベル 1
+          </button>
+          <button id="btn-select-level-2" onclick="selectStartLevel(2)" class="border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100">
+            レベル 2
+          </button>
+          <button id="btn-select-level-3" onclick="selectStartLevel(3)" class="border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100">
+            レベル 3
+          </button>
+        </div>
+      </div>
+
+      <!-- アイテム選択セクション -->
+      <div class="bg-amber-50 p-3 rounded-2xl border-2 border-amber-200 space-y-2">
+        <p class="text-sm font-black text-amber-900 flex justify-center items-center gap-1">
+          <span>🎁</span> もっていく 魔法（まほう）を ２つ えらぼう！
+        </p>
+        
+        <div class="grid grid-cols-5 gap-1.5">
+          <button id="btn-select-freeze" onclick="toggleItemSelection('freeze')" class="border-2 border-blue-400 bg-blue-100 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer scale-105 shadow">
+            <span class="text-xl">❄️</span>
+            <span class="text-[10px] font-bold mt-1 text-blue-800">ストップ</span>
+          </button>
+          <button id="btn-select-return" onclick="toggleItemSelection('return')" class="border-2 border-pink-400 bg-pink-100 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer scale-105 shadow">
+            <span class="text-xl">🏠</span>
+            <span class="text-[10px] font-bold mt-1 text-pink-850">もどす</span>
+          </button>
+          <button id="btn-select-warp" onclick="toggleItemSelection('warp')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100">
+            <span class="text-xl">🌀</span>
+            <span class="text-[10px] font-bold mt-1 text-emerald-800">ワープ</span>
+          </button>
+          <button id="btn-select-shield" onclick="toggleItemSelection('shield')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100">
+            <span class="text-xl">🛡️</span>
+            <span class="text-[10px] font-bold mt-1 text-red-855">バリア</span>
+          </button>
+          <button id="btn-select-magnet" onclick="toggleItemSelection('magnet')" class="border-2 border-slate-200 bg-white rounded-xl p-1.5 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100">
+            <span class="text-xl">🧲</span>
+            <span class="text-[10px] font-bold mt-1 text-orange-800">ひきよせ</span>
+          </button>
+        </div>
+        <p id="selection-error" class="text-[11px] text-red-500 font-bold hidden">※ まほうは ちょうど２つ えらんでね！</p>
+      </div>
+
+      <!-- 選んだアイテムの詳しい説明 -->
+      <div id="selection-desc-box" class="bg-blue-50/50 p-2.5 rounded-xl text-left text-xxs text-slate-600 space-y-1 border border-blue-100">
+        <!-- 動的に説明が入ります -->
+      </div>
+
+      <!-- ランキング表示セクション -->
+      <div class="bg-yellow-50 p-3 rounded-2xl border border-yellow-200 text-left space-y-2">
+        <p class="text-xs font-black text-amber-900 flex justify-between items-center">
+          <span>🏆 レベル別ランキング (ベスト3)</span>
+          <select id="rank-level-select" onchange="window.displayRanking()" class="bg-white border border-amber-300 text-xs px-1.5 py-0.5 rounded font-bold">
+            <option value="1">レベル 1</option>
+            <option value="2">レベル 2</option>
+            <option value="3">レベル 3</option>
+          </select>
+        </p>
+        <div id="ranking-list" class="text-xs space-y-1 text-slate-700 font-bold">
+          <!-- ランキングが描画されます -->
+        </div>
+      </div>
+
+      <div class="bg-yellow-50/30 p-2 rounded-xl text-[10px] text-amber-900 text-left space-y-0.5">
+        <p class="font-bold">⭐ ルールと制限時間（せいげんじかん）：</p>
+        <p>・レベル１：15x15マス / おばけ 1たい / 制限時間：<strong>100秒</strong></p>
+        <p>・レベル２：19x19マス / おばけ 2たい / 制限時間：<strong>150秒</strong></p>
+        <p>・レベル３：23x23マス / おばけ 3たい / 制限時間：<strong>300秒</strong></p>
+        <p>※ クリアしたときに【<strong>のこったアイテムの数 × 10ポイント</strong>】のボーナス！</p>
+        <p class="text-red-600">※ さらに【<strong>アイテムを一度も使わずにクリア</strong>】すると、<strong>＋50ポイント</strong>！🔥</p>
+      </div>
+
+      <!-- ゲームスタートボタン -->
+      <button id="btn-start-game" onclick="startGame(selectedLevel)" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-emerald-700 active:border-b-2 active:translate-y-1 shadow-lg transition-transform">
+        ゲームをはじめる！
+      </button>
+    </div>
+
+    <!-- ================= ゲームプレイ画面 ================= -->
+    <div id="screen-game" class="hidden w-full flex flex-col items-center space-y-3">
+      
+      <!-- スコアと情報 -->
+      <div class="w-full bg-white rounded-2xl p-3 border-2 border-amber-200 flex justify-between items-center shadow-md">
+        <div class="text-sm font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">
+          L <span id="info-level">1</span>
+        </div>
+
+        <!-- のこり時間（タイマー） -->
+        <div class="text-sm font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1 rounded-full flex items-center gap-1">
+          <span>⏱️ のこり:</span>
+          <span id="info-time-left" class="font-black text-base">100</span>秒
+        </div>
+
+        <!-- アクティブなアイテムタイマーバッジ -->
+        <div class="flex gap-1">
+          <span id="badge-freeze" class="hidden text-[10px] bg-blue-500 text-white font-bold px-2 py-1 rounded-lg animate-pulse flex items-center gap-0.5">
+            <span>💤</span>停止
+          </span>
+          <span id="badge-shield" class="hidden text-[10px] bg-red-500 text-white font-bold px-2 py-1 rounded-lg animate-pulse flex items-center gap-0.5">
+            <span>🛡️</span>無敵
+          </span>
+        </div>
+
+        <div class="text-sm font-bold text-slate-600 flex items-center gap-1">
+          <span>⭐ のこり:</span>
+          <span id="star-count" class="text-lg text-amber-600 font-black">0</span>
+        </div>
+        <button onclick="showStartScreen()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded-lg">
+          もどる
+        </button>
+      </div>
+
+      <!-- キャンバスコンテナ -->
+      <div id="canvas-container" class="w-full max-w-[420px] bg-slate-900 rounded-2xl p-2 border-4 border-amber-400 shadow-xl overflow-hidden flex items-center justify-center transition-all duration-300">
+        <canvas id="gameCanvas" width="400" height="400" class="max-w-full h-auto bg-slate-950 rounded-lg"></canvas>
+      </div>
+
+      <!-- ================= アイテムストック＆使用パネル ================= -->
+      <div class="w-full bg-white rounded-2xl p-2.5 border-2 border-amber-200 shadow-md flex justify-around items-center">
+        <button id="btn-use-slot1" onclick="useSlotItem(0)" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all border-2 border-slate-300 rounded-xl px-3 py-2 relative w-[47%]">
+          <span id="slot1-emoji" class="text-2xl">❄️</span>
+          <div class="text-left overflow-hidden">
+            <p id="slot1-name" class="text-xs font-black text-slate-700 truncate">アイテム1</p>
+            <p class="text-[9px] text-slate-400 font-bold">Q / 7キー</p>
+          </div>
+          <span id="slot1-count" class="absolute -top-2 -right-2 bg-slate-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
+        </button>
+
+        <button id="btn-use-slot2" onclick="useSlotItem(1)" class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all border-2 border-slate-300 rounded-xl px-3 py-2 relative w-[47%]">
+          <span id="slot2-emoji" class="text-2xl">🏠</span>
+          <div class="text-left overflow-hidden">
+            <p id="slot2-name" class="text-xs font-black text-slate-700 truncate">アイテム2</p>
+            <p class="text-[9px] text-slate-400 font-bold">E / 9キー</p>
+          </div>
+          <span id="slot2-count" class="absolute -top-2 -right-2 bg-slate-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
+        </button>
+      </div>
+
+      <!-- 💡 スマホ・タブレット用：押しっぱなしでずっと動く十字キー（IDをセット） -->
+      <div class="w-full max-w-[240px] flex flex-col items-center gap-1 py-1">
+        <!-- 上ボタン -->
+        <button 
+          id="btn-dir-up"
+          class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center select-none touch-none"
+        >
+          ▲
+        </button>
+        <!-- 左右ボタン -->
+        <div class="flex justify-between w-full">
+          <button 
+            id="btn-dir-left"
+            class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center select-none touch-none"
+          >
+            ◀
+          </button>
+          <div class="w-14 h-14 flex flex-col items-center justify-center text-[9px] text-slate-400 font-bold select-none leading-tight text-center">
+            <span>ボタンを</span>
+            <span>おしっぱ</span>
+          </div>
+          <button 
+            id="btn-dir-right"
+            class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center select-none touch-none"
+          >
+            ▶
+          </button>
+        </div>
+        <!-- 下ボタン -->
+        <button 
+          id="btn-dir-down"
+          class="w-14 h-14 bg-amber-400 active:bg-amber-600 text-amber-955 font-black text-2xl rounded-2xl shadow-md border-b-4 border-amber-600 flex items-center justify-center select-none touch-none"
+        >
+          ▼
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ================= レベルクリア中間画面 ================= -->
+    <div id="screen-level-clear" class="hidden bg-white rounded-3xl p-6 text-center shadow-xl border-4 border-yellow-400 space-y-4 w-full">
+      <div class="text-6xl animate-bounce">🎉🌟✨</div>
+      <div class="space-y-1">
+        <h2 class="text-2xl font-bold text-amber-800">レベル <span id="cleared-level-num">1</span> クリア！</h2>
+        <p class="text-sm text-slate-700 font-bold">お星さまをぜんぶあつめたよ！素晴らしい！</p>
+      </div>
+
+      <div class="bg-amber-50 p-3 rounded-2xl border border-amber-200 text-left text-xs space-y-1 font-bold text-amber-900">
+        <p class="text-sm font-black border-b border-amber-200 pb-1 flex items-center gap-1">📊 クリアけっか</p>
+        <p class="flex justify-between"><span>のこり時間ポイント:</span> <span id="result-time">0点</span></p>
+        <p class="flex justify-between"><span>のこったアイテムボーナス:</span> <span id="result-bonus">0点</span></p>
+        <p class="flex justify-between text-red-600"><span>アイテム不使用ボーナス:</span> <span id="result-no-use-bonus">0点</span></p>
+        <p class="flex justify-between text-sm border-t border-amber-200 pt-1 text-emerald-700"><span>ごうけいポイント:</span> <span id="result-total-points">0点</span></p>
+      </div>
+
+      <!-- ランキング登録 -->
+      <div id="ranking-input-area" class="bg-blue-50 p-3 rounded-2xl border border-blue-200 space-y-2 text-left">
+        <p class="text-xs font-black text-blue-900">🏆 ランキングに なまえ をのせよう！</p>
+        <div class="flex gap-2">
+          <input type="text" id="ranking-name-input" maxlength="8" placeholder="なまえ (8文字まで)" class="flex-grow text-sm p-2 rounded-lg border-2 border-blue-300 focus:outline-none focus:border-blue-500 font-bold text-center">
+          <button id="btn-save-ranking" onclick="saveRanking()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-lg active:scale-95 transition-transform">
+            とうろく！
+          </button>
+        </div>
+        <p id="ranking-success-msg" class="text-[11px] text-green-600 font-bold hidden text-center">とうろくしました！✨</p>
+      </div>
+
+      <div class="space-y-2 pt-2">
+        <p class="text-xs text-slate-500">次のレベルは、もっとめいろが広くなっておばけが増えるぞ…！</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="showStartScreen()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-xl border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 text-sm">
+            🚪 やめる (タイトルへ)
+          </button>
+          <button onclick="startNextLevel()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-xl border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 text-sm flex items-center justify-center gap-1">
+            挑戦する！ ➔
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= ゲーム完全クリア画面 ================= -->
+    <div id="screen-clear" class="hidden bg-white rounded-3xl p-6 text-center shadow-xl border-4 border-emerald-400 space-y-4 w-full">
+      <div class="text-6xl animate-bounce">🏆👑🎊</div>
+      <div class="space-y-1">
+        <h2 class="text-3xl font-bold text-emerald-600">オールクリア！</h2>
+        <p class="text-md text-slate-700 font-bold">レベル３までぜんぶクリアしたよ！おめでとう！</p>
+      </div>
+
+      <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 text-left text-xs space-y-1 font-bold text-emerald-900">
+        <p class="text-sm font-black border-b border-emerald-200 pb-1 flex items-center gap-1">📊 レベル３ クリアけっか</p>
+        <p class="flex justify-between"><span>のこり時間ポイント:</span> <span id="result-time-final">0点</span></p>
+        <p class="flex justify-between"><span>のこったアイテムボーナス:</span> <span id="result-bonus-final">0点</span></p>
+        <p class="flex justify-between text-red-600"><span>アイテム不使用ボーナス:</span> <span id="result-no-use-bonus-final">0点</span></p>
+        <p class="flex justify-between text-sm border-t border-emerald-200 pt-1 text-emerald-800"><span>ごうけいポイント:</span> <span id="result-total-points-final">0点</span></p>
+      </div>
+
+      <!-- ランキング登録（最終用） -->
+      <div id="ranking-input-area-final" class="bg-blue-50 p-3 rounded-2xl border border-blue-200 space-y-2 text-left">
+        <p class="text-xs font-black text-blue-900">🏆 ランキングに なまえ をのせよう！</p>
+        <div class="flex gap-2">
+          <input type="text" id="ranking-name-input-final" maxlength="8" placeholder="なまえ (8文字まで)" class="flex-grow text-sm p-2 rounded-lg border-2 border-blue-300 focus:outline-none focus:border-blue-500 font-bold text-center">
+          <button id="btn-save-ranking-final" onclick="saveRankingFinal()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-lg active:scale-95 transition-transform">
+            とうろく！
+          </button>
+        </div>
+        <p id="ranking-success-msg-final" class="text-[11px] text-green-600 font-bold hidden text-center">とうろくしました！✨</p>
+      </div>
+
+      <div class="pt-2">
+        <button onclick="showStartScreen()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg py-3 px-6 rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1">
+          🚪 タイトル画面にもどる！
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= ゲームオーバー画面 ================= -->
+    <div id="screen-over" class="hidden bg-white rounded-3xl p-6 text-center shadow-xl border-4 border-red-400 space-y-6 w-full">
+      <div class="text-6xl" id="over-icon">😭👻💥</div>
+      <div class="space-y-2">
+        <h2 class="text-2xl font-bold text-red-500" id="over-title">おばけにつかまった！</h2>
+        <p class="text-md text-slate-700 font-bold" id="over-message">
+          ざんねん！おばけにタッチしちゃった。
+        </p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="showStartScreen()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-xl border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 text-sm">
+          🚪 タイトルにもどる
+        </button>
+        <button onclick="retryCurrentLevel()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl border-b-4 border-red-700 active:border-b-0 active:translate-y-1 text-sm">
+          もういちど！
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- フッター -->
+  <footer class="bg-amber-100 p-3 text-center text-xs text-slate-500 border-t border-amber-200">
+    <p>© どきどき！まほうのめいろゲーム</p>
+  </footer>
+
+  <!-- 💡 Firebase SDK と メインゲームプログラム -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // グローバル状態オブジェクト（ゲーム側と共有）
+    window.db = null;
+    window.auth = null;
+    window.isCloudRankingEnabled = false;
+
+    // Firebaseの初期化
+    const initFirebase = async () => {
+      console.log("%c[Firebase] 初期化処理チェックを開始します...", "color: #06b6d4; font-weight: bold;");
+      try {
+        if (typeof window.__firebase_config !== 'undefined' && window.__firebase_config && !window.__firebase_config.includes('process.env')) {
+          console.log("%c[Firebase] 環境変数 __firebase_config を検出しました。接続を開始します。", "color: #06b6d4;");
+          let config = window.__firebase_config;
+          if (typeof config === 'string') {
+            config = JSON.parse(config);
+          }
+          const app = initializeApp(config);
+          window.auth = getAuth(app);
+          window.db = getFirestore(app);
+          
+          console.log("%c[Firebase] 匿名認証(サインイン)を試行中...", "color: #06b6d4;");
+          await signInAnonymously(window.auth);
+          window.isCloudRankingEnabled = true;
+          console.log("%c[Firebase] 🔓 匿名認証成功。オンラインランキングが有効になりました！", "color: #10b981; font-weight: bold;");
+        } else {
+          console.log("%c[Firebase] 設定が見つかりません。ローカルストレージ（オフライン）モードで動作します。", "color: #64748b; font-style: italic;");
+        }
+      } catch (error) {
+        console.error("[Firebase] ❌ 初期化または認証中にエラーが発生しました:", error);
+      }
+      displayRanking();
+    };
+
+    // --- ここからゲームのメインロジック ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const ITEMS_INFO = {
+      freeze: { name: "おばけストップ", emoji: "❄️", desc: "❄️ おばけストップ: 10秒間、おばけ全員を凍らせて眠らせるよ！(💤マーク)", color: "#3b82f6", tailwind: "blue" },
+      return: { name: "おばけリターン", emoji: "🏠", desc: "🏠 おばけリターン: すべてのおばけを一瞬でスタート地点（おうち）に強制ワープで戻すよ！", color: "#ec4899", tailwind: "pink" },
+      warp: { name: "緊急ワープ", emoji: "🌀", desc: "🌀 緊急ワープ: 大ピンチの時、おばけから一番遠くて安全な床に一瞬でテレポートするよ！", color: "#10b981", tailwind: "emerald" },
+      shield: { name: "バリア(無敵)", emoji: "🛡️", desc: "🛡️ バリア(無敵): 10秒間、おばけから姿が見えなくなっておばけに当たっても平気だよ！(🛡️マーク)", color: "#ef4444", tailwind: "red" },
+      magnet: { name: "星ひきよせ", emoji: "🧲", desc: "🧲 星ひきよせ: ねこちゃんのまわり２マスにある黄色いお星さまをまとめて回収するよ！", color: "#f97316", tailwind: "orange" }
+    };
+
+    const LEVELS_DATA = {
+      1: {
+        timeLimit: 100,
+        map: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,2,2,3,2,2,1,2,2,2,4,2,2,2,1], 
+          [1,2,1,1,2,1,1,2,1,1,2,1,1,2,1],
+          [1,2,1,2,2,2,2,2,2,2,2,2,1,2,1],
+          [1,2,1,2,1,1,1,1,1,1,1,2,1,2,1],
+          [1,2,2,2,1,0,0,0,0,0,1,2,2,2,1], 
+          [1,1,1,2,1,0,1,1,1,0,1,2,1,1,1],
+          [1,0,2,2,2,0,1,0,1,0,2,2,2,0,1],
+          [1,1,1,2,1,0,1,1,1,0,1,2,1,1,1],
+          [1,2,2,2,1,0,0,0,0,0,1,2,2,2,1],
+          [1,2,1,2,1,1,1,1,1,1,1,2,1,2,1],
+          [1,2,1,2,2,2,2,2,2,2,2,2,1,2,1],
+          [1,2,1,1,2,1,1,2,1,1,2,1,1,2,1],
+          [1,2,2,2,4,2,2,2,1,2,2,3,2,2,1], 
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        playerStart: { x: 7, y: 1 },
+        ghosts: [
+          { x: 13, y: 13, targetX: 13, targetY: 13, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.015, isChasing: false }
+        ]
+      },
+      2: {
+        timeLimit: 150,
+        map: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,2,2,3,2,2,2,2,2,1,2,2,2,2,2,2,4,2,1], 
+          [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
+          [1,2,1,2,2,2,1,2,2,2,2,2,1,2,2,2,1,2,1],
+          [1,2,1,2,1,2,1,2,1,1,1,2,1,2,1,2,1,2,1],
+          [1,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,1],
+          [1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1],
+          [1,2,2,2,2,2,1,2,2,1,2,2,1,2,2,2,2,2,1],
+          [1,2,1,1,1,2,1,2,1,0,1,2,1,2,1,1,1,2,1],
+          [1,2,1,2,2,2,2,2,1,0,1,2,2,2,2,2,1,2,1],
+          [1,2,1,1,1,2,1,2,1,0,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,2,2,1,2,2,1,2,2,1,2,2,2,2,2,1],
+          [1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1],
+          [1,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,1],
+          [1,2,1,2,1,2,1,2,1,1,1,2,1,2,1,2,1,2,1],
+          [1,2,1,2,2,2,1,2,2,2,2,2,1,2,2,2,1,2,1],
+          [1,2,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,2,1],
+          [1,2,2,4,2,2,2,2,2,1,2,2,2,2,2,2,3,2,1], 
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        playerStart: { x: 9, y: 1 },
+        ghosts: [
+          { x: 1, y: 17, targetX: 1, targetY: 17, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.02, isChasing: false },
+          { x: 17, y: 17, targetX: 17, targetY: 17, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.02, isChasing: false }
+        ]
+      },
+      3: {
+        timeLimit: 300,
+        map: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,2,2,3,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,4,2,1], 
+          [1,2,1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1,2,1],
+          [1,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,1],
+          [1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1],
+          [1,2,2,2,1,2,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,1],
+          [1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1],
+          [1,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,1],
+          [1,2,1,1,1,2,1,2,1,1,1,0,1,1,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,1,2,2,2,1,0,0,0,0,0,1,2,2,2,1,2,2,2,1],
+          [1,1,1,2,1,1,1,2,1,0,1,1,1,0,1,2,1,1,1,2,1,1,1],
+          [1,0,2,2,2,2,1,2,1,0,1,1,1,0,1,2,1,2,2,2,2,0,1],
+          [1,1,1,2,1,2,1,2,1,0,1,1,1,0,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,1,2,2,2,1,0,0,0,0,0,1,2,2,2,1,2,2,2,1],
+          [1,2,1,1,1,2,1,2,1,1,1,0,1,1,1,2,1,2,1,1,1,2,1],
+          [1,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,1],
+          [1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,2,1,1,1],
+          [1,2,2,2,1,2,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,1],
+          [1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,2,1],
+          [1,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,2,2,2,2,1,2,1],
+          [1,2,1,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,1,2,1],
+          [1,2,2,4,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,3,2,1], 
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        playerStart: { x: 11, y: 1 },
+        ghosts: [
+          { x: 1, y: 21, targetX: 1, targetY: 21, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.025, isChasing: false },
+          { x: 21, y: 21, targetX: 21, targetY: 21, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.025, isChasing: false },
+          { x: 11, y: 21, targetX: 11, targetY: 21, animProgress: 0, color: '👻', lastDir: 'up', speed: 0.025, isChasing: false }
+        ]
+      }
+    };
+
+    window.selectedLevel = 1;
+    let currentLevel = 1;
+    let currentMap = [];
+    let tileCountX = 15;
+    let tileCountY = 15;
+    let TILE_SIZE = 26.6;
+    
+    let player = { x: 7, y: 1, targetX: 7, targetY: 1, animProgress: 0 };
+    let ghosts = [];
+    let totalStars = 0;
+    let gameActive = false;
+    let animationFrameId;
+
+    window.chosenItems = ['freeze', 'return'];
+    let stockSlots = [1, 1];
+
+    let ghostFreezeTime = 0;
+    let playerShieldTime = 0;
+
+    let timeLeft = 100;
+    let timerInterval = null;
+    let itemUsedThisStage = false;
+    let finalCalculatedScore = 0;
+
+    let uiTextEffect = { text: "", timer: 0, color: "" };
+
+    // 💡 押しっぱなし操作の状態管理変数
+    let activeTouchDir = null;
+
+    window.setDirection = function(dir) {
+      if (!gameActive) return;
+      if (player.x === player.targetX && player.y === player.targetY) {
+        let nextX = player.x;
+        let nextY = player.y;
+
+        if (dir === 'up') nextY--;
+        if (dir === 'down') nextY++;
+        if (dir === 'left') nextX--;
+        if (dir === 'right') nextX++;
+
+        if (currentMap[nextY] && currentMap[nextY][nextX] !== 1) {
+          player.targetX = nextX;
+          player.targetY = nextY;
+          player.animProgress = 0;
+        }
+      }
+    }
+
+    // モバイルタッチ環境の押しっぱなし制御システム
+    function setupMobileControls() {
+      const dirs = ['up', 'down', 'left', 'right'];
+      dirs.forEach(dir => {
+        const btn = document.getElementById(`btn-dir-${dir}`);
+        if (!btn) {
+          console.warn(`[Controls] 十字キーボタンが見つかりません: btn-dir-${dir}`);
+          return;
+        }
+
+        // スマホ用タッチハンドラー (e.preventDefault()で遅延・ズームを完全にブロック)
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          activeTouchDir = dir;
+          window.setDirection(dir);
+        }, { passive: false });
+
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          if (activeTouchDir === dir) {
+            activeTouchDir = null;
+          }
+        }, { passive: false });
+
+        btn.addEventListener('touchcancel', (e) => {
+          e.preventDefault();
+          if (activeTouchDir === dir) {
+            activeTouchDir = null;
+          }
+        }, { passive: false });
+
+        // PCでのマウスホールド動作テスト用
+        btn.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          activeTouchDir = dir;
+          window.setDirection(dir);
+        });
+
+        const stopMouse = (e) => {
+          if (activeTouchDir === dir) {
+            activeTouchDir = null;
+          }
+        };
+
+        btn.addEventListener('mouseup', stopMouse);
+        btn.addEventListener('mouseleave', stopMouse);
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === '8') window.setDirection('up');
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === '2') window.setDirection('down');
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === '4') window.setDirection('left');
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === '6') window.setDirection('right');
+
+      if (e.key === 'q' || e.key === 'Q' || e.key === '7') useSlotItem(0);
+      if (e.key === 'e' || e.key === 'E' || e.key === '9') useSlotItem(1);
+      
+      if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '8', '2', '4', '6', 'q', 'Q', 'e', 'E', '7', '9'].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    window.selectStartLevel = function(level) {
+      window.selectedLevel = level;
+      updateLevelSelectionUI();
+    }
+
+    function updateLevelSelectionUI() {
+      for (let i = 1; i <= 3; i++) {
+        const btn = document.getElementById(`btn-select-level-${i}`);
+        if (window.selectedLevel === i) {
+          btn.className = "border-4 border-emerald-500 bg-emerald-100 rounded-xl py-2 font-bold text-emerald-800 scale-105 shadow-md";
+        } else {
+          btn.className = "border-2 border-slate-200 bg-white rounded-xl py-2 font-bold text-slate-500 opacity-80 hover:opacity-100";
+        }
+      }
+    }
+
+    window.toggleItemSelection = function(itemKey) {
+      const index = window.chosenItems.indexOf(itemKey);
+      if (index > -1) {
+        if (window.chosenItems.length > 1) window.chosenItems.splice(index, 1);
+      } else {
+        if (window.chosenItems.length >= 2) window.chosenItems.shift();
+        window.chosenItems.push(itemKey);
+      }
+      updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+      const allItems = ['freeze', 'return', 'warp', 'shield', 'magnet'];
+      allItems.forEach(item => {
+        const btn = document.getElementById(`btn-select-${item}`);
+        if (window.chosenItems.includes(item)) {
+          const col = ITEMS_INFO[item].tailwind;
+          btn.className = `border-4 border-${col}-500 bg-${col}-100 rounded-xl p-2 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer scale-105 shadow-md`;
+        } else {
+          btn.className = `border-2 border-slate-200 bg-white rounded-xl p-2 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer opacity-60 hover:opacity-100`;
+        }
+      });
+
+      const startBtn = document.getElementById('btn-start-game');
+      const errorText = document.getElementById('selection-error');
+      const descBox = document.getElementById('selection-desc-box');
+
+      if (window.chosenItems.length === 2) {
+        startBtn.disabled = false;
+        startBtn.className = "w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-emerald-700 active:border-b-2 active:translate-y-1 shadow-lg transition-transform";
+        errorText.classList.add('hidden');
+        descBox.innerHTML = `
+          <p class="font-bold text-slate-700 text-xs">🎒 もっていく魔法のせいかく：</p>
+          <p>・${ITEMS_INFO[window.chosenItems[0]].desc}</p>
+          <p>・${ITEMS_INFO[window.chosenItems[1]].desc}</p>
+        `;
+        descBox.classList.remove('hidden');
+      } else {
+        startBtn.disabled = true;
+        startBtn.className = "w-full bg-slate-300 text-slate-500 font-bold text-xl py-3 px-6 rounded-2xl border-b-8 border-slate-400 cursor-not-allowed";
+        errorText.classList.remove('hidden');
+        descBox.classList.add('hidden');
+      }
+    }
+
+    function initItemSlots() {
+      const slot1Key = window.chosenItems[0];
+      const slot2Key = window.chosenItems[1];
+
+      document.getElementById('slot1-emoji').innerText = ITEMS_INFO[slot1Key].emoji;
+      document.getElementById('slot1-name').innerText = ITEMS_INFO[slot1Key].name;
+      document.getElementById('btn-use-slot1').className = `flex items-center gap-1.5 bg-${ITEMS_INFO[slot1Key].tailwind}-50 hover:bg-${ITEMS_INFO[slot1Key].tailwind}-100 active:scale-95 transition-all border-2 border-${ITEMS_INFO[slot1Key].tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
+      document.getElementById('slot1-count').className = `absolute -top-2 -right-2 bg-${ITEMS_INFO[slot1Key].tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
+
+      document.getElementById('slot2-emoji').innerText = ITEMS_INFO[slot2Key].emoji;
+      document.getElementById('slot2-name').innerText = ITEMS_INFO[slot2Key].name;
+      document.getElementById('btn-use-slot2').className = `flex items-center gap-1.5 bg-${ITEMS_INFO[slot2Key].tailwind}-50 hover:bg-${ITEMS_INFO[slot2Key].tailwind}-100 active:scale-95 transition-all border-2 border-${ITEMS_INFO[slot2Key].tailwind}-300 rounded-xl px-3 py-2 relative w-[47%]`;
+      document.getElementById('slot2-count').className = `absolute -top-2 -right-2 bg-${ITEMS_INFO[slot2Key].tailwind}-600 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow`;
+
+      stockSlots = [1, 1];
+      updateStockUI();
+    }
+
+    function updateStockUI() {
+      document.getElementById('slot1-count').innerText = stockSlots[0];
+      document.getElementById('slot2-count').innerText = stockSlots[1];
+    }
+
+    function triggerTextEffect(text, color) {
+      uiTextEffect.text = text;
+      uiTextEffect.color = color;
+      uiTextEffect.timer = 90; 
+    }
+
+    function triggerScreenAura(type) {
+      const body = document.getElementById('game-body');
+      const container = document.getElementById('canvas-container');
+      const col = ITEMS_INFO[type].tailwind;
+      body.classList.add(`bg-${col}-100`);
+      container.classList.add(`${type}-aura`);
+      setTimeout(() => {
+        body.classList.remove(`bg-${col}-100`);
+        container.classList.remove(`${type}-aura`);
+      }, 800);
+    }
+
+    window.useSlotItem = function(slotIndex) {
+      if (!gameActive) return;
+      if (stockSlots[slotIndex] <= 0) return;
+
+      const itemKey = window.chosenItems[slotIndex];
+      let success = false;
+
+      if (itemKey === 'freeze') {
+        ghostFreezeTime = 600; 
+        triggerTextEffect("おばけストップ！！", "#3b82f6");
+        triggerScreenAura("freeze");
+        success = true;
+      } else if (itemKey === 'return') {
+        success = executeReturn();
+      } else if (itemKey === 'warp') {
+        success = executeWarp();
+      } else if (itemKey === 'shield') {
+        playerShieldTime = 600; 
+        triggerTextEffect("バリア（無敵）！！", "#ef4444");
+        triggerScreenAura("shield");
+        ghosts.forEach(g => g.isChasing = false);
+        success = true;
+      } else if (itemKey === 'magnet') {
+        success = executeMagnet();
+      }
+
+      if (success) {
+        stockSlots[slotIndex]--;
+        updateStockUI();
+        itemUsedThisStage = true; 
+      }
+    }
+
+    function executeReturn() {
+      const levelData = LEVELS_DATA[currentLevel];
+      ghosts.forEach((ghost, idx) => {
+        const template = levelData.ghosts[idx];
+        ghost.x = template.x; ghost.y = template.y; ghost.targetX = template.x; ghost.targetY = template.y;
+        ghost.animProgress = 0; ghost.isChasing = false; ghost.lastDir = template.lastDir;
+      });
+      triggerTextEffect("おばけリターン！！", "#ec4899");
+      triggerScreenAura("return");
+      return true;
+    }
+
+    function executeWarp() {
+      let bestX = player.x, bestY = player.y, maxMinDist = -1;
+      for (let r = 0; r < tileCountY; r++) {
+        for (let c = 0; c < tileCountX; c++) {
+          if (currentMap[r][c] !== 1) { 
+            if (ghosts.some(g => Math.round(g.x) === c && Math.round(g.y) === r)) continue;
+            let minDist = 999;
+            ghosts.forEach(g => {
+              let dist = Math.abs(c - g.x) + Math.abs(r - g.y);
+              if (dist < minDist) minDist = dist;
+            });
+            if (minDist > maxMinDist) {
+              maxMinDist = minDist; bestX = c; bestY = r;
+            }
+          }
+        }
+      }
+      if (maxMinDist > 0) {
+        player.x = bestX; player.y = bestY; player.targetX = bestX; player.targetY = bestY; player.animProgress = 0;
+        triggerTextEffect("緊急ワープ！！", "#10b981");
+        triggerScreenAura("warp");
+        return true;
+      }
+      return false;
+    }
+
+    function executeMagnet() {
+      let collected = 0;
+      for (let r = 0; r < tileCountY; r++) {
+        for (let c = 0; c < tileCountX; c++) {
+          if (currentMap[r][c] === 2) { 
+            if (Math.abs(c - player.x) + Math.abs(r - player.y) <= 2) {
+              currentMap[r][c] = 0; totalStars--; collected++;
+            }
+          }
+        }
+      }
+      if (collected > 0) {
+        document.getElementById('star-count').innerText = totalStars;
+        triggerTextEffect(`お星さま ${collected}こ ひきよせ！`, "#f97316");
+        triggerScreenAura("magnet");
+        if (totalStars === 0) handleStageClear();
+        return true;
+      }
+      triggerTextEffect("まわりに星がないよ！", "#94a3b8");
+      return false;
+    }
+
+    window.showStartScreen = function() {
+      gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval); 
+      document.getElementById('screen-start').classList.remove('hidden');
+      document.getElementById('screen-game').classList.add('hidden');
+      document.getElementById('screen-level-clear').classList.add('hidden');
+      document.getElementById('screen-clear').classList.add('hidden');
+      document.getElementById('screen-over').classList.add('hidden');
+      updateLevelSelectionUI(); 
+      updateSelectionUI();
+      displayRanking(); 
+    }
+
+    window.startGame = function(level) {
+      currentLevel = level;
+      document.getElementById('screen-start').classList.add('hidden');
+      document.getElementById('screen-game').classList.remove('hidden');
+      document.getElementById('screen-level-clear').classList.add('hidden');
+      document.getElementById('screen-clear').classList.add('hidden');
+      document.getElementById('screen-over').classList.add('hidden');
+
+      const levelData = LEVELS_DATA[currentLevel];
+      currentMap = JSON.parse(JSON.stringify(levelData.map));
+      tileCountY = currentMap.length; tileCountX = currentMap[0].length; TILE_SIZE = 400 / tileCountX;
+
+      player = { x: levelData.playerStart.x, y: levelData.playerStart.y, targetX: levelData.playerStart.x, targetY: levelData.playerStart.y, animProgress: 0 };
+      ghosts = JSON.parse(JSON.stringify(levelData.ghosts));
+
+      ghostFreezeTime = 0; playerShieldTime = 0; uiTextEffect.timer = 0; itemUsedThisStage = false;
+      timeLeft = levelData.timeLimit;
+      document.getElementById('info-time-left').innerText = timeLeft;
+      
+      clearInterval(timerInterval); 
+      timerInterval = setInterval(() => {
+        if (gameActive) {
+          timeLeft--;
+          document.getElementById('info-time-left').innerText = timeLeft;
+          if (timeLeft <= 0) handleTimeUp(); 
+        }
+      }, 1000);
+      
+      initItemSlots();
+      document.getElementById('info-level').innerText = currentLevel;
+      countStars();
+      gameActive = true;
+      gameLoop();
+    }
+
+    window.retryCurrentLevel = function() { startGame(currentLevel); }
+    window.startNextLevel = function() { startGame(currentLevel + 1); }
+
+    function handleTimeUp() {
+      gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval);
+      document.getElementById('over-icon').innerText = "⏱️💥😱";
+      document.getElementById('over-title').innerText = "じかんぎれ！";
+      document.getElementById('over-message').innerText = "ざんねん！タイマーが０になっちゃった。";
+      document.getElementById('screen-game').classList.add('hidden');
+      document.getElementById('screen-over').classList.remove('hidden');
+    }
+
+    function handleStageClear() {
+      gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval); 
+      const timePoints = timeLeft;
+      const remainingItemsCount = stockSlots[0] + stockSlots[1];
+      const itemBonusPoints = remainingItemsCount * 10;
+      const noItemUseBonus = !itemUsedThisStage ? 50 : 0;
+      
+      finalCalculatedScore = timePoints + itemBonusPoints + noItemUseBonus;
+
+      if (currentLevel < 3) {
+        document.getElementById('cleared-level-num').innerText = currentLevel;
+        document.getElementById('result-time').innerText = `${timePoints}点 (${timePoints}秒のこり)`;
+        document.getElementById('result-bonus').innerText = `${itemBonusPoints}点 (のこったアイテム: ${remainingItemsCount}こ)`;
+        document.getElementById('result-no-use-bonus').innerText = `${noItemUseBonus}点 ${!itemUsedThisStage ? '🔥(一度も使わなかった！)' : '(使いました)'}`;
+        document.getElementById('result-total-points').innerText = `${finalCalculatedScore}点`;
+
+        document.getElementById('ranking-name-input').value = "";
+        document.getElementById('ranking-name-input').disabled = false;
+        document.getElementById('btn-save-ranking').disabled = false;
+        document.getElementById('ranking-success-msg').classList.add('hidden');
+
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-level-clear').classList.remove('hidden');
+      } else {
+        document.getElementById('result-time-final').innerText = `${timePoints}点 (${timePoints}秒のこり)`;
+        document.getElementById('result-bonus-final').innerText = `${itemBonusPoints}点 (のこったアイテム: ${remainingItemsCount}こ)`;
+        document.getElementById('result-no-use-bonus-final').innerText = `${noItemUseBonus}点 ${!itemUsedThisStage ? '🔥(一度も使わなかった！)' : '(使いました)'}`;
+        document.getElementById('result-total-points-final').innerText = `${finalCalculatedScore}点`;
+
+        document.getElementById('ranking-name-input-final').value = "";
+        document.getElementById('ranking-name-input-final').disabled = false;
+        document.getElementById('btn-save-ranking-final').disabled = false;
+        document.getElementById('ranking-success-msg-final').classList.add('hidden');
+
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-clear').classList.remove('hidden');
+      }
+    }
+
+    function getRankingFromLocal(level) {
+      const data = localStorage.getItem(`magic_maze_ranking_level_${level}`);
+      return data ? JSON.parse(data) : [];
+    }
+
+    function addRankingToLocal(level, name, score) {
+      let ranking = getRankingFromLocal(level);
+      ranking.push({ name: name || "ななしのねこ", score: score, date: new Date().toLocaleDateString() });
+      ranking.sort((a, b) => b.score - a.score);
+      ranking = ranking.slice(0, 5);
+      localStorage.setItem(`magic_maze_ranking_level_${level}`, JSON.stringify(ranking));
+    }
+
+    window.saveRanking = async function() {
+      const nameInput = document.getElementById('ranking-name-input');
+      const name = nameInput.value.trim() || "ななしのねこ";
+      nameInput.disabled = true; document.getElementById('btn-save-ranking').disabled = true;
+
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          await addDoc(collection(window.db, "artifacts", "default-app-id", "public", "data", `level_${currentLevel}`), {
+            name: name, score: finalCalculatedScore, createdAt: new Date()
+          });
+        } catch (error) {
+          addRankingToLocal(currentLevel, name, finalCalculatedScore);
+        }
+      } else {
+        addRankingToLocal(currentLevel, name, finalCalculatedScore);
+      }
+      document.getElementById('ranking-success-msg').classList.remove('hidden');
+    }
+
+    window.saveRankingFinal = async function() {
+      const nameInput = document.getElementById('ranking-name-input-final');
+      const name = nameInput.value.trim() || "ななしのねこ";
+      nameInput.disabled = true; document.getElementById('btn-save-ranking-final').disabled = true;
+
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          await addDoc(collection(window.db, "artifacts", "default-app-id", "public", "data", "level_3"), {
+            name: name, score: finalCalculatedScore, createdAt: new Date()
+          });
+        } catch (error) {
+          addRankingToLocal(3, name, finalCalculatedScore);
+        }
+      } else {
+        addRankingToLocal(3, name, finalCalculatedScore);
+      }
+      document.getElementById('ranking-success-msg-final').classList.remove('hidden');
+    }
+
+    window.displayRanking = async function() {
+      const select = document.getElementById('rank-level-select');
+      if (!select) return;
+      const level = select.value;
+      const listContainer = document.getElementById('ranking-list');
+      listContainer.innerHTML = "<p class='text-slate-400 italic text-center py-1'>よみこみ中...</p>";
+
+      let ranking = [];
+      
+      if (window.isCloudRankingEnabled && window.db) {
+        try {
+          const q = query(collection(window.db, "artifacts", "default-app-id", "public", "data", `level_${level}`), orderBy("score", "desc"), limit(5));
+          const querySnapshot = await getDocs(q);
+          querySnapshot.forEach((doc) => ranking.push(doc.data()));
+        } catch (error) {
+          ranking = getRankingFromLocal(level);
+        }
+      } else {
+        ranking = getRankingFromLocal(level);
+      }
+
+      listContainer.innerHTML = "";
+      if (ranking.length === 0) {
+        listContainer.innerHTML = "<p class='text-slate-400 italic text-center py-1'>まだとうろくがありません</p>";
+        return;
+      }
+      ranking.slice(0, 3).forEach((entry, idx) => {
+        const item = document.createElement('div');
+        item.className = "flex justify-between items-center bg-white p-1 px-2.5 rounded-lg border border-yellow-100 shadow-sm";
+        let medal = idx === 0 ? "🥇 " : idx === 1 ? "🥈 " : idx === 2 ? "🥉 " : `${idx + 1}位: `;
+        item.innerHTML = `<span>${medal}${entry.name}</span><span class="text-amber-600 font-extrabold">${entry.score}点</span>`;
+        listContainer.appendChild(item);
+      });
+    }
+
+    function countStars() {
+      totalStars = 0;
+      for (let r = 0; r < currentMap.length; r++) {
+        for (let c = 0; c < currentMap[r].length; c++) {
+          if (currentMap[r][c] === 2) totalStars++;
+        }
+      }
+      document.getElementById('star-count').innerText = totalStars;
+    }
+
+    function gameLoop() {
+      if (!gameActive) return;
+      update(); draw();
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+      if (ghostFreezeTime > 0) ghostFreezeTime--;
+      if (playerShieldTime > 0) playerShieldTime--;
+      if (uiTextEffect.timer > 0) uiTextEffect.timer--;
+
+      const badgeFreeze = document.getElementById('badge-freeze');
+      const badgeShield = document.getElementById('badge-shield');
+      if (ghostFreezeTime > 0) {
+        badgeFreeze.innerHTML = `<span>💤</span>停止 (${Math.ceil(ghostFreezeTime / 60)}s)`;
+        badgeFreeze.classList.remove('hidden');
+      } else { badgeFreeze.classList.add('hidden'); }
+
+      if (playerShieldTime > 0) {
+        badgeShield.innerHTML = `<span>🛡️</span>無敵 (${Math.ceil(playerShieldTime / 60)}s)`;
+        badgeShield.classList.remove('hidden');
+      } else { badgeShield.classList.add('hidden'); }
+
+      // 💡 プレイヤーがマスの上にちょうど静止しており、かつ十字キーが押しっぱなしの場合、自動的に移動指示を送り続ける
+      if (player.x === player.targetX && player.y === player.targetY && activeTouchDir) {
+        window.setDirection(activeTouchDir);
+      }
+
+      if (player.x !== player.targetX || player.y !== player.targetY) {
+        player.animProgress += 0.15;
+        if (player.animProgress >= 1) {
+          player.x = player.targetX; player.y = player.targetY; player.animProgress = 0;
+          const currentTile = currentMap[player.y][player.x];
+          if (currentTile === 2) {
+            currentMap[player.y][player.x] = 0; totalStars--;
+            document.getElementById('star-count').innerText = totalStars;
+            if (totalStars === 0) handleStageClear();
+          } else if (currentTile === 3) {
+            currentMap[player.y][player.x] = 0; stockSlots[0]++; updateStockUI();
+            triggerTextEffect(`${ITEMS_INFO[window.chosenItems[0]].name} ゲット！`, ITEMS_INFO[window.chosenItems[0]].color);
+          } else if (currentTile === 4) {
+            currentMap[player.y][player.x] = 0; stockSlots[1]++; updateStockUI();
+            triggerTextEffect(`${ITEMS_INFO[window.chosenItems[1]].name} ゲット！`, ITEMS_INFO[window.chosenItems[1]].color);
+          }
+        }
+      }
+
+      let occupiedPositions = [];
+      ghosts.forEach(g => { if (g.x !== g.targetX || g.y !== g.targetY) occupiedPositions.push({ x: g.targetX, y: g.targetY }); });
+
+      ghosts.forEach((ghost, idx) => {
+        let distToPlayer = Math.abs(ghost.x - player.x) + Math.abs(ghost.y - player.y);
+        if (ghostFreezeTime <= 0) {
+          if (playerShieldTime > 0) { ghost.isChasing = false; }
+          else {
+            if (distToPlayer <= 5 && !ghost.isChasing) ghost.isChasing = true;
+            else if (distToPlayer >= 7 && ghost.isChasing) ghost.isChasing = false;
+          }
+
+          if (ghost.x === ghost.targetX && ghost.y === ghost.targetY) {
+            const dirs = { up: { dx: 0, dy: -1, opp: 'down' }, down: { dx: 0, dy: 1, opp: 'up' }, left: { dx: -1, dy: 0, opp: 'right' }, right: { dx: 1, dy: 0, opp: 'left' } };
+            let possibleDirs = [];
+            for (let key in dirs) {
+              const nx = ghost.x + dirs[key].dx, ny = ghost.y + dirs[key].dy;
+              if (currentMap[ny] && currentMap[ny][nx] !== 1) possibleDirs.push({ name: key, dx: dirs[key].dx, dy: dirs[key].dy, opp: dirs[key].opp, nx, ny });
+            }
+
+            if (possibleDirs.length > 0) {
+              let chosen = null;
+              let nonOverlappingDirs = possibleDirs.filter(d => !occupiedPositions.some(pos => pos.x === d.nx && pos.y === d.ny));
+              let activeDirs = nonOverlappingDirs.length > 0 ? nonOverlappingDirs : possibleDirs;
+
+              if (ghost.isChasing) {
+                activeDirs.sort((a, b) => (Math.abs(a.nx - player.x) + Math.abs(a.ny - player.y)) - (Math.abs(b.nx - player.x) + Math.abs(b.ny - player.y)));
+                chosen = activeDirs[0];
+              } else {
+                let straightDir = activeDirs.find(d => d.name === ghost.lastDir);
+                if (straightDir) {
+                  chosen = (activeDirs.length > 2 && Math.random() < 0.2) ? activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp)[Math.floor(Math.random() * activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp).length)] || straightDir : straightDir;
+                } else {
+                  let turnDirs = activeDirs.filter(d => d.name !== dirs[ghost.lastDir].opp);
+                  chosen = turnDirs.length > 0 ? turnDirs[Math.floor(Math.random() * turnDirs.length)] : activeDirs[0];
+                }
+              }
+              if (chosen) {
+                ghost.targetX = chosen.nx; ghost.targetY = chosen.ny; ghost.lastDir = chosen.name;
+                occupiedPositions.push({ x: ghost.targetX, y: ghost.targetY });
+              }
+            }
+            ghost.animProgress = 0;
+          } else {
+            ghost.animProgress += ghost.speed;
+            if (ghost.animProgress >= 1) { ghost.x = ghost.targetX; ghost.y = ghost.targetY; ghost.animProgress = 0; }
+          }
+        }
+      });
+
+      ghosts.forEach((ghost, idx) => {
+        let pRealX = player.x + (player.targetX - player.x) * player.animProgress;
+        let pRealY = player.y + (player.targetY - player.y) * player.animProgress;
+        let gRealX = ghost.x + (ghost.targetX - ghost.x) * ghost.animProgress;
+        let gRealY = ghost.y + (ghost.targetY - ghost.y) * ghost.animProgress;
+
+        if (Math.sqrt(Math.pow(pRealX - gRealX, 2) + Math.pow(pRealY - gRealY, 2)) < 0.6) {
+          if (playerShieldTime > 0) return;
+          gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(timerInterval); 
+          document.getElementById('over-icon').innerText = "😭👻💥";
+          document.getElementById('over-title').innerText = "おばけにつかまった！";
+          document.getElementById('over-message').innerText = "ざんねん！おばけにタッチしちゃった。";
+          document.getElementById('screen-game').classList.add('hidden');
+          document.getElementById('screen-over').classList.remove('hidden');
+        }
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const slot1Item = window.chosenItems[0]; const slot2Item = window.chosenItems[1];
+
+      for (let r = 0; r < currentMap.length; r++) {
+        for (let c = 0; c < currentMap[r].length; c++) {
+          const tile = currentMap[r][c];
+          if (tile === 1) {
+            ctx.fillStyle = '#475569'; ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            ctx.fillStyle = '#334155'; ctx.fillRect(c * TILE_SIZE + TILE_SIZE * 0.1, r * TILE_SIZE + TILE_SIZE * 0.1, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+          } else if (tile === 2) {
+            ctx.font = `${TILE_SIZE * 0.6}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText("⭐", c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2);
+          } else if (tile === 3) {
+            ctx.font = `${TILE_SIZE * 0.7}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(ITEMS_INFO[slot1Item].emoji, c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2);
+          } else if (tile === 4) {
+            ctx.font = `${TILE_SIZE * 0.7}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(ITEMS_INFO[slot2Item].emoji, c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2);
+          }
+        }
+      }
+
+      let pRealX = player.x + (player.targetX - player.x) * player.animProgress;
+      let pRealY = player.y + (player.targetY - player.y) * player.animProgress;
+      ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText("🐱", pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE + TILE_SIZE/2);
+
+      if (playerShieldTime > 0) {
+        ctx.save(); ctx.beginPath(); ctx.arc(pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE + TILE_SIZE/2, TILE_SIZE * 0.8, 0, 2 * Math.PI);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 + Math.sin(Date.now() / 100) * 0.25})`; ctx.lineWidth = 3; ctx.stroke();
+        ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`; ctx.fillStyle = '#ef4444'; ctx.fillText("🛡️", pRealX * TILE_SIZE + TILE_SIZE/2, pRealY * TILE_SIZE - TILE_SIZE * 0.35); ctx.restore();
+      }
+
+      ghosts.forEach(ghost => {
+        let gRealX = ghost.x + (ghost.targetX - ghost.x) * ghost.animProgress;
+        let gRealY = ghost.y + (ghost.targetY - ghost.y) * ghost.animProgress;
+
+        if (ghostFreezeTime > 0) {
+          ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = "#60a5fa";
+          ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText("🥶", gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE + TILE_SIZE/2); ctx.restore();
+          ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`; ctx.fillStyle = '#60a5fa'; ctx.fillText("💤", gRealX * TILE_SIZE + TILE_SIZE/2 + TILE_SIZE * 0.35, gRealY * TILE_SIZE - TILE_SIZE * 0.25);
+        } else {
+          ctx.font = `${TILE_SIZE * 0.8}px 'Kiwi Maru'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(ghost.color, gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE + TILE_SIZE/2);
+          if (ghost.isChasing && playerShieldTime <= 0) {
+            ctx.font = `${TILE_SIZE * 0.5}px 'Kiwi Maru'`; ctx.fillStyle = '#f87171'; ctx.fillText("❗️", gRealX * TILE_SIZE + TILE_SIZE/2, gRealY * TILE_SIZE - TILE_SIZE * 0.2);
+          }
+        }
+      });
+
+      if (uiTextEffect.timer > 0) {
+        ctx.save(); ctx.fillStyle = uiTextEffect.color; ctx.globalAlpha = Math.min(1, uiTextEffect.timer / 30);
+        ctx.font = "bold 22px 'Kiwi Maru'"; ctx.textAlign = "center";
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 8;
+        ctx.fillText(uiTextEffect.text, 200, 200 - (90 - uiTextEffect.timer) * 0.6); ctx.restore();
+      }
+    }
+
+    // 初期起動時の処理
+    window.addEventListener('DOMContentLoaded', () => {
+      initFirebase();
+      showStartScreen();
+      
+      // 💡 モバイル押しっぱなし操作システムをセットアップ
+      setupMobileControls();
+    });
+  </script>
+</body>
+</html>
