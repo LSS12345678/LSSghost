@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase 接続・動作診断ツール</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Kiwi Maru) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;700&family=Space+Mono&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Kiwi Maru', sans-serif;
+    }
+    .console-font {
+      font-family: 'Space Mono', monospace;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between p-4 md:p-8">
+
+  <!-- ヘッダー -->
+  <header class="max-w-4xl mx-auto w-full text-center mb-6">
+    <h1 class="text-2xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 tracking-wider">
+      ⚡ Firebase 接続・動作診断ツール ⚡
+    </h1>
+    <p class="text-slate-400 text-xs md:text-sm mt-2">
+      ゲームとFirebaseの連携が本当に「生きているか」を様々な角度からテストします。
+    </p>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="max-w-4xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-grow">
+    
+    <!-- 左ペイン：設定・接続トリガー（4スロット分） -->
+    <section class="lg:col-span-5 space-y-6">
+      
+      <!-- 現在の環境変数検知パネル -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 shadow-xl space-y-4">
+        <h2 class="text-sm font-bold text-cyan-400 flex items-center gap-1.5">
+          <span>🔍</span> Vercel環境変数の検知状況
+        </h2>
+        
+        <div id="env-detect-badge" class="p-3 rounded-xl border font-bold text-center text-xs">
+          判定中...
+        </div>
+
+        <div id="detected-config-details" class="hidden bg-slate-950/60 p-3 rounded-lg text-xxs text-slate-400 console-font overflow-x-auto whitespace-pre">
+          <!-- 読み込まれたConfigを一部伏字にして表示 -->
+        </div>
+      </div>
+
+      <!-- 手動貼り付けテストパネル（環境変数がダメな時の救済策） -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="text-sm font-bold text-amber-400 flex items-center gap-1.5">
+            <span>📋</span> 手動設定（Configの直接テスト）
+          </h2>
+          <button onclick="toggleManualForm()" id="btn-toggle-manual" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded-md transition-colors">
+            開く ▾
+          </button>
+        </div>
+
+        <div id="manual-form-container" class="hidden space-y-3">
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            Firebaseコンソールからコピーした「apiKeyやprojectIdが含まれるJSON形式」をそのまま貼り付けてテストできます。
+          </p>
+          <textarea id="manual-config-input" placeholder='{\n  "apiKey": "AIzaSy...",\n  "authDomain": "...",\n  ...\n}' class="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs console-font text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"></textarea>
+          <button onclick="applyManualConfig()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-955 font-bold text-xs py-2 rounded-xl active:scale-98 transition-all">
+            手動Configを適用する
+          </button>
+        </div>
+      </div>
+
+      <!-- テスト開始ボタン -->
+      <button onclick="runDiagnosticTest()" id="btn-run-test" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-lg py-4 rounded-2xl border-b-4 border-blue-800 active:border-b-0 active:translate-y-1 shadow-lg transition-all flex items-center justify-center gap-2">
+        <span>🚀</span> 診断テストを開始する！
+      </button>
+
+    </section>
+
+    <!-- 右ペイン：診断結果＆詳細ログ -->
+    <section class="lg:col-span-7 space-y-6">
+      
+      <!-- テスト項目チェックリスト -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 shadow-xl space-y-4">
+        <h2 class="text-sm font-bold text-slate-300 flex justify-between items-center">
+          <span>📊 項目別テスト結果</span>
+          <span id="test-overall-status" class="text-xs px-2 py-0.5 rounded bg-slate-750 text-slate-400">未実行</span>
+        </h2>
+
+        <div class="space-y-2.5">
+          <!-- 項目1: SDKロード -->
+          <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-750">
+            <div class="flex items-center gap-3">
+              <span id="icon-step-1" class="text-lg">⚪</span>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-200">① Firebase SDK のインポート</p>
+                <p class="text-[10px] text-slate-400">CDN経由でJSモジュールがロードできているか</p>
+              </div>
+            </div>
+            <span id="badge-step-1" class="text-xxs px-2 py-0.5 rounded bg-slate-800 text-slate-500">WAIT</span>
+          </div>
+
+          <!-- 項目2: アプリ初期化 -->
+          <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-750">
+            <div class="flex items-center gap-3">
+              <span id="icon-step-2" class="text-lg">⚪</span>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-200">② Firebase App の初期化</p>
+                <p class="text-[10px] text-slate-400">Configが正しく読み込まれ初期設定が完了したか</p>
+              </div>
+            </div>
+            <span id="badge-step-2" class="text-xxs px-2 py-0.5 rounded bg-slate-800 text-slate-500">WAIT</span>
+          </div>
+
+          <!-- 項目3: 匿名認証 -->
+          <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-750">
+            <div class="flex items-center gap-3">
+              <span id="icon-step-3" class="text-lg">⚪</span>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-200">③ 匿名認証 (Auth) の成否</p>
+                <p class="text-[10px] text-slate-400">Firebase Authでゲストログインができるか</p>
+              </div>
+            </div>
+            <span id="badge-step-3" class="text-xxs px-2 py-0.5 rounded bg-slate-800 text-slate-500">WAIT</span>
+          </div>
+
+          <!-- 項目4: 基本コレクション読み書き -->
+          <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-750">
+            <div class="flex items-center gap-3">
+              <span id="icon-step-4" class="text-lg">⚪</span>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-200">④ Firestore 基本書き込みテスト (ranking)</p>
+                <p class="text-[10px] text-slate-400">「ranking」コレクションにデータを保存できるか</p>
+              </div>
+            </div>
+            <span id="badge-step-4" class="text-xxs px-2 py-0.5 rounded bg-slate-800 text-slate-500">WAIT</span>
+          </div>
+
+          <!-- 項目5: ゲーム専用コレクション書き込み -->
+          <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-750">
+            <div class="flex items-center gap-3">
+              <span id="icon-step-5" class="text-lg">⚪</span>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-200">⑤ Firestore ゲーム専用パス書き込みテスト</p>
+                <p class="text-[10px] text-slate-400">artifacts/... 以下のゲーム用制限パスに書き込めるか</p>
+              </div>
+            </div>
+            <span id="badge-step-5" class="text-xxs px-2 py-0.5 rounded bg-slate-800 text-slate-500">WAIT</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 診断ログ・コンソール -->
+      <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-inner space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-xs font-bold text-slate-400 flex items-center gap-1.5 console-font">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span> DIAGNOSTIC LOG CONSOLE
+          </h3>
+          <button onclick="copyLogConsole()" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300 transition-colors">
+            ログをコピーする
+          </button>
+        </div>
+        
+        <div id="log-console-box" class="h-48 overflow-y-auto border border-slate-900 bg-black/60 p-3 rounded-xl console-font text-[11px] text-emerald-400 space-y-1.5 leading-relaxed text-left">
+          <p class="text-slate-500">// 診断を開始するとここに詳細ログが出力されます。</p>
+        </div>
+      </div>
+
+      <!-- セキュリティルールお助けアドバイス -->
+      <div id="rules-guide-panel" class="hidden bg-emerald-950/40 border border-emerald-800/60 rounded-2xl p-5 space-y-3 text-left">
+        <h3 class="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+          <span>🛡️</span> Firebaseセキュリティルールの正しい設定方法
+        </h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          診断結果から、あなたのゲームにピッタリな本番用セキュリティルールを生成しました。<br>
+          これをご自身の <strong class="text-emerald-300">Firebase Console ➔ Firestore ➔ ルール</strong> に貼り付けて「公開」してください。
+        </p>
+        <div class="relative">
+          <pre id="suggested-rules" class="bg-slate-950 p-3 rounded-xl text-[10px] console-font text-slate-300 overflow-x-auto whitespace-pre leading-normal border border-emerald-900"></pre>
+          <button onclick="copySuggestedRules()" class="absolute top-2 right-2 text-[9px] bg-emerald-800 hover:bg-emerald-700 px-2 py-1 rounded text-white font-bold transition-all">
+            コピー
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- フッター -->
+  <footer class="max-w-4xl mx-auto w-full text-center mt-6 text-slate-600 text-xxs border-t border-slate-800 pt-4">
+    <p>© Firebase Connection Diagnostic Tool | For Magic Maze Game Development</p>
+  </footer>
+
+  <!-- Vercelの受け取り宣言 (もしあれば自動検知) -->
+  <script>
+    // Vercelから環境変数として渡ってくる差し込み口（Vercelデプロイ時のみ置換される）
+    window.__firebase_config = '<!-- @process.env.__firebase_config -->';
+  </script>
+
+  <!-- Firebase 接続チェック用プログラム -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // グローバルにテスト用参照を保持
+    window.f_initializeApp = initializeApp;
+    window.f_getAuth = getAuth;
+    window.f_signInAnonymously = signInAnonymously;
+    window.f_getFirestore = getFirestore;
+    window.f_doc = doc;
+    window.f_setDoc = setDoc;
+    window.f_getDoc = getDoc;
+    window.f_collection = collection;
+    window.f_addDoc = addDoc;
+
+    console.log("%c[System] Firebase SDK Modules Loaded successfully.", "color: #10b981; font-weight: bold;");
+    
+    // ロード完了フラグ
+    window.isSdkLoaded = true;
+    updateStepStatus(1, 'success', 'インポート完了！');
+    writeToConsole("SDK LOAD: Firebase v11.6.1 SDK loaded successfully from CDN.", "emerald");
+
+    // 初期化検知を走らせる
+    detectConfigOnStart();
+  </script>
+
+  <!-- メインデバッグ制御スクリプト -->
+  <script>
+    window.isSdkLoaded = false;
+    let activeFirebaseConfig = null;
+
+    // コンソールへのログ出力
+    function writeToConsole(text, color = "slate") {
+      const box = document.getElementById('log-console-box');
+      const p = document.createElement('p');
+      
+      const colors = {
+        slate: "text-slate-400",
+        emerald: "text-emerald-400 font-bold",
+        cyan: "text-cyan-400",
+        amber: "text-amber-400 font-bold",
+        red: "text-red-400 font-bold bg-red-950/20 px-1 py-0.5 rounded",
+        purple: "text-purple-400"
+      };
+
+      p.className = colors[color] || colors.slate;
+      
+      const time = new Date().toLocaleTimeString();
+      p.innerHTML = `<span class="text-slate-600">[${time}]</span> ${text}`;
+      
+      box.appendChild(p);
+      box.scrollTop = box.scrollHeight; // 最下部へ自動スクロール
+    }
+
+    // 各診断ステップのUI更新
+    function updateStepStatus(stepNum, status, text = '') {
+      const icon = document.getElementById(`icon-step-${stepNum}`);
+      const badge = document.getElementById(`badge-step-${stepNum}`);
+
+      if (status === 'wait') {
+        icon.innerText = "⚪";
+        badge.className = "text-xxs px-2 py-0.5 rounded bg-slate-800 text-slate-500";
+        badge.innerText = "WAIT";
+      } else if (status === 'running') {
+        icon.innerText = "⏳";
+        badge.className = "text-xxs px-2 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800 animate-pulse";
+        badge.innerText = "RUNNING";
+      } else if (status === 'success') {
+        icon.innerText = "✅";
+        badge.className = "text-xxs px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800";
+        badge.innerText = text || "OK";
+      } else if (status === 'failed') {
+        icon.innerText = "❌";
+        badge.className = "text-xxs px-2 py-0.5 rounded bg-red-950/60 text-red-400 border border-red-800";
+        badge.innerText = text || "FAILED";
+      }
+    }
+
+    // 起動時の環境変数自動チェック
+    function detectConfigOnStart() {
+      const badge = document.getElementById('env-detect-badge');
+      const details = document.getElementById('detected-config-details');
+      
+      writeToConsole("ENV CHECK: Vercel環境変数の読み込み状況をチェックしています...");
+
+      // window.__firebase_config の評価
+      let rawConfig = window.__firebase_config;
+
+      // Vercel差し込みタグが未置換のまま文字列として残っている場合、または存在しない場合
+      if (!rawConfig || rawConfig === 'undefined' || rawConfig.includes('process.env') || rawConfig.includes('@process.env')) {
+        badge.innerText = "❌ 環境変数がありません (undefined)";
+        badge.className = "p-3 rounded-xl border border-red-800 bg-red-950/20 font-bold text-center text-xs text-red-400";
+        writeToConsole("ENV CHECK: Vercelの環境変数 '__firebase_config' は検知されませんでした。ローカル実行中か、環境変数・受け取り宣言がありません。", "amber");
+        return;
+      }
+
+      writeToConsole("ENV CHECK: サーバー側から設定値を検知しました！パースを開始します。", "cyan");
+
+      try {
+        let parsed = null;
+        if (typeof rawConfig === 'string') {
+          parsed = JSON.parse(rawConfig);
+        } else if (typeof rawConfig === 'object') {
+          parsed = rawConfig;
+        }
+
+        if (parsed && parsed.apiKey) {
+          activeFirebaseConfig = parsed;
+          badge.innerText = "✅ 環境変数を正常に検出！";
+          badge.className = "p-3 rounded-xl border border-emerald-800 bg-emerald-950/20 font-bold text-center text-xs text-emerald-400 animate-pulse";
+          
+          // 一部マスクして表示
+          const maskedConfig = {
+            apiKey: parsed.apiKey.substring(0, 8) + "...",
+            projectId: parsed.projectId,
+            authDomain: parsed.authDomain
+          };
+          details.innerText = JSON.stringify(maskedConfig, null, 2);
+          details.classList.remove('hidden');
+
+          writeToConsole(`ENV CHECK: [プロジェクトID: ${parsed.projectId}] を自動で読み込みました。`, "emerald");
+        } else {
+          throw new Error("必要なキー(apiKey等)が含まれていません。");
+        }
+      } catch (err) {
+        badge.innerText = "⚠️ 破損した環境変数";
+        badge.className = "p-3 rounded-xl border border-amber-800 bg-amber-950/20 font-bold text-center text-xs text-amber-400";
+        writeToConsole(`ENV CHECK: 検出されたデータが正しいJSON形式ではありません。エラー: ${err.message}`, "red");
+      }
+    }
+
+    // 手動設定フォームのアコーディオン切り替え
+    function toggleManualForm() {
+      const container = document.getElementById('manual-form-container');
+      const btn = document.getElementById('btn-toggle-manual');
+      if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        btn.innerText = "閉じる ▴";
+      } else {
+        container.classList.add('hidden');
+        btn.innerText = "開く ▾";
+      }
+    }
+
+    // 手動貼り付けたConfigを適用する
+    function applyManualConfig() {
+      const input = document.getElementById('manual-config-input').value.trim();
+      
+      if (!input) {
+        writeToConsole("MANUAL: テキストエリアが空っぽです。", "red");
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(input);
+        if (!parsed.apiKey || !parsed.projectId) {
+          throw new Error("JSONオブジェクトに 'apiKey' または 'projectId' が含まれていません。");
+        }
+
+        activeFirebaseConfig = parsed;
+        writeToConsole("MANUAL: 手動貼り付けのConfigをテスト用として設定しました！", "cyan");
+        writeToConsole(`MANUAL: プロジェクトID [ ${parsed.projectId} ] を設定。`, "emerald");
+
+        // 状態表示バッジも一時的に書き換える
+        const badge = document.getElementById('env-detect-badge');
+        badge.innerText = "📋 手動適用中";
+        badge.className = "p-3 rounded-xl border border-amber-500 bg-amber-950/20 font-bold text-center text-xs text-amber-400";
+      } catch (err) {
+        writeToConsole(`MANUAL: ❌ JSON解析エラー。貼り付けた文字列が正しい形か確認してください。エラー: ${err.message}`, "red");
+      }
+    }
+
+    // ==========================================
+    // ⚙️ 接続診断テストの実行（全工程）
+    // ==========================================
+    async function runDiagnosticTest() {
+      writeToConsole("DIAGNOSTIC: ==========================================", "purple");
+      writeToConsole("DIAGNOSTIC: 🔎 接続診断テストを開始します...", "purple");
+      
+      const overall = document.getElementById('test-overall-status');
+      overall.innerText = "診断テスト中...";
+      overall.className = "text-xs px-2 py-0.5 rounded bg-blue-900 text-blue-200";
+
+      // 全体進捗を一旦リセット
+      updateStepStatus(2, 'wait');
+      updateStepStatus(3, 'wait');
+      updateStepStatus(4, 'wait');
+      updateStepStatus(5, 'wait');
+
+      // 1. SDKのロードチェック
+      updateStepStatus(1, 'running');
+      if (window.isSdkLoaded) {
+        updateStepStatus(1, 'success', 'LOADED');
+        writeToConsole("STEP 1: Firebase v11 SDK module is successfully loaded.", "emerald");
+      } else {
+        updateStepStatus(1, 'failed', 'LOAD ERROR');
+        writeToConsole("STEP 1 ERROR: Firebase SDK modules are not loaded. Network issue or import failure.", "red");
+        finalizeTestResult(false);
+        return;
+      }
+
+      // Configが存在するか
+      if (!activeFirebaseConfig) {
+        writeToConsole("STEP 2 ERROR: 初期化に必要なConfigがありません。Vercelの環境変数をセットするか、手動で貼り付けてください。", "red");
+        updateStepStatus(2, 'failed', 'NO CONFIG');
+        finalizeTestResult(false);
+        return;
+      }
+
+      // 2. Firebase App 初期化
+      let app = null;
+      updateStepStatus(2, 'running');
+      try {
+        app = window.f_initializeApp(activeFirebaseConfig);
+        updateStepStatus(2, 'success', 'SUCCESS');
+        writeToConsole(`STEP 2: Firebase App initialized successfully. Project: ${activeFirebaseConfig.projectId}`, "emerald");
+      } catch (err) {
+        updateStepStatus(2, 'failed', 'INIT ERROR');
+        writeToConsole(`STEP 2 ERROR: initializeApp に失敗しました。設定値が破損している恐れがあります。詳細: ${err.message}`, "red");
+        finalizeTestResult(false);
+        return;
+      }
+
+      // 3. 匿名認証
+      let auth = null;
+      let currentUser = null;
+      updateStepStatus(3, 'running');
+      try {
+        auth = window.f_getAuth(app);
+        writeToConsole("STEP 3: 匿名認証(signInAnonymously)を要求中...", "cyan");
+        const cred = await window.f_signInAnonymously(auth);
+        currentUser = cred.user;
+        updateStepStatus(3, 'success', 'SUCCESS');
+        writeToConsole(`STEP 3: 🔓 匿名サインイン成功！ユーザーID: ${currentUser.uid}`, "emerald");
+      } catch (err) {
+        updateStepStatus(3, 'failed', 'AUTH ERROR');
+        writeToConsole(`STEP 3 ERROR: 認証に失敗しました。Firebase Consoleで「匿名ログイン(Anonymous)」プロバイダが有効になっているか確認してください。詳細: ${err.message}`, "red");
+        finalizeTestResult(false);
+        return;
+      }
+
+      // 4. Firestore 基本書き込みテスト (ranking/test_document)
+      let db = null;
+      updateStepStatus(4, 'running');
+      try {
+        db = window.f_getFirestore(app);
+        writeToConsole("STEP 4: Firestoreの基本コレクション 'ranking' への書き込みを開始します...", "cyan");
+        
+        // 開発者がルールで書き換えたコレクション名「ranking」
+        const testDocRef = window.f_doc(db, "ranking", "test_connection_doc");
+        await window.f_setDoc(testDocRef, {
+          testTime: new Date().toISOString(),
+          testerUid: currentUser.uid,
+          message: "Firestore connection looks alive!"
+        });
+        
+        writeToConsole("STEP 4: Firestoreへのダミー書き込み完了。追って読み込み（存在確認）を行います...", "cyan");
+        const snap = await window.f_getDoc(testDocRef);
+        if (snap.exists()) {
+          updateStepStatus(4, 'success', 'SUCCESS');
+          writeToConsole("STEP 4: 🎉 基本コレクション(ranking)でのデータの書き込みと再取得に100%成功しました！", "emerald");
+        } else {
+          throw new Error("書き込んだはずのデータが読み込めません。");
+        }
+      } catch (err) {
+        updateStepStatus(4, 'failed', 'PERMISSION ERROR');
+        writeToConsole(`STEP 4 ERROR: 基本書き込みテストに失敗しました。セキュリティルールが 'ranking' コレクションの書き込みを許可しているか確認してください。詳細: ${err.message}`, "red");
+        generateSecurityRuleHelp(activeFirebaseConfig.projectId, false);
+        finalizeTestResult(false);
+        return;
+      }
+
+      // 5. ゲーム専用パス書き込みテスト (artifacts/...)
+      updateStepStatus(5, 'running');
+      try {
+        writeToConsole("STEP 5: ゲームで使われている実パス '/artifacts/default-app-id/public/data/level_test' へのアクセスを検証中...", "cyan");
+        
+        const gameDocRef = window.f_doc(db, "artifacts", "default-app-id", "public", "data", "connection_test_doc");
+        await window.f_setDoc(gameDocRef, {
+          testTime: new Date().toISOString(),
+          score: 9999,
+          name: "接続診断にゃんこ"
+        });
+
+        writeToConsole("STEP 5: ゲーム専用パスへの書き込み成功。再取得テストを行います...", "cyan");
+        const gameSnap = await window.f_getDoc(gameDocRef);
+        
+        if (gameSnap.exists()) {
+          updateStepStatus(5, 'success', 'SUCCESS');
+          writeToConsole("STEP 5: 🏆 素晴らしい！ゲーム内で使用される制限されたURLパス(artifacts)への保存も完璧に動作しています！", "emerald");
+          finalizeTestResult(true);
+        } else {
+          throw new Error("ゲームパスのデータが消滅しています。");
+        }
+      } catch (err) {
+        updateStepStatus(5, 'failed', 'RULE BLOCK');
+        writeToConsole(`STEP 5 ERROR: ゲーム専用パスへの書き込みが拒否(Permission Denied)されました。セキュリティルールが 'artifacts' コレクションを正しく許可していません。詳細: ${err.message}`, "red");
+        
+        // 原因はほぼ100%セキュリティルールにあるため、ルール生成ヘルプを表示
+        generateSecurityRuleHelp(activeFirebaseConfig.projectId, true);
+        finalizeTestResult(false);
+      }
+    }
+
+    // 診断終了の集計表示
+    function finalizeTestResult(isAllSuccess) {
+      const overall = document.getElementById('test-overall-status');
+      if (isAllSuccess) {
+        overall.innerText = "すべて正常 (SUCCESS) 🎉";
+        overall.className = "text-xs px-2 py-0.5 rounded bg-emerald-500 text-white font-bold animate-bounce";
+        writeToConsole("DIAGNOSTIC: 🏆 おめでとうございます！Firebaseは問題なく稼働しています。ゲーム内でもオンラインランキングが利用可能です！", "emerald");
+        
+        // 不要なセキュリティルールヘルプは隠す
+        document.getElementById('rules-guide-panel').classList.add('hidden');
+      } else {
+        overall.innerText = "異常検出 (ERROR) ❌";
+        overall.className = "text-xs px-2 py-0.5 rounded bg-red-500 text-white font-bold";
+        writeToConsole("DIAGNOSTIC: ⚠️ 接続診断に失敗しました。上記のエラーメッセージ(赤文字)を見て、原因を確認してください。", "red");
+      }
+      writeToConsole("DIAGNOSTIC: ==========================================", "purple");
+    }
+
+    // 適切なセキュリティルールの提案
+    function generateSecurityRuleHelp(projectId, isArtifactsBlockOnly) {
+      const panel = document.getElementById('rules-guide-panel');
+      const rulesPre = document.getElementById('suggested-rules');
+
+      let rulesText = "";
+
+      if (isArtifactsBlockOnly) {
+        // artifacts パスへのアクセスルールが足りてない場合
+        rulesText = `rules_version = '2';\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n\n    // 🐱 ゲーム用の書き込み・読み込みルール\n    match /artifacts/{appId}/public/data/{collectionName}/{document} {\n      allow read: if true;\n      allow create, update: if request.auth != null;\n      allow delete: if false;\n    }\n\n    // 🏆 rankingコレクション(診断テスト用)へのアクセス\n    match /ranking/{document} {\n      allow read: if true;\n      allow create, update: if request.auth != null;\n      allow delete: if false;\n    }\n  }\n}`;
+      } else {
+        // 全く書き込めない場合
+        rulesText = `rules_version = '2';\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n\n    // 🔑 匿名認証にログインした全てのユーザーにアクセスを許可するルール\n    match /{document=**} {\n      allow read, write: if request.auth != null;\n    }\n  }\n}`;
+      }
+
+      rulesPre.innerText = rulesText;
+      panel.classList.remove('hidden');
+    }
+
+    // コピー処理 (Clipboard API)
+    function copyLogConsole() {
+      const logs = document.getElementById('log-console-box').innerText;
+      
+      // クリップボードへのフォールバック書き込み (ルール対応)
+      const tempArea = document.createElement('textarea');
+      tempArea.value = logs;
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempArea);
+
+      alert("コンソールログをクリップボードにコピーしました！");
+    }
+
+    function copySuggestedRules() {
+      const rules = document.getElementById('suggested-rules').innerText;
+      
+      const tempArea = document.createElement('textarea');
+      tempArea.value = rules;
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempArea);
+
+      alert("推奨セキュリティルールをコピーしました！");
+    }
+  </script>
+
+</body>
+</html>
